@@ -1,0 +1,105 @@
+{
+  "realm": "hospital-platform",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "hospital-platform-web",
+      "publicClient": true,
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "protocolMappers": [
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "hospital-platform-backend",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "hospital-platform-service",
+      "publicClient": false,
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "service-dev-secret",
+      "protocolMappers": [
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "hospital-platform-backend",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "username": "platform-admin",
+      "email": "admin@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "username": "ml-engineer-1",
+      "email": "ml-engineer-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "ML",
+      "lastName": "Engineer",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "username": "app-developer-1",
+      "email": "app-developer-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "App",
+      "lastName": "Developer",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "username": "clinical-safety-1",
+      "email": "clinical-safety-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Clinical",
+      "lastName": "Safety Reviewer",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000005",
+      "username": "auditor-1",
+      "email": "auditor-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Auditor",
+      "lastName": "Test",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    }
+  ]
+}
