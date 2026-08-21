@@ -35,6 +35,42 @@ services:
       timeout: 5s
       retries: 20
 
+  # Malware scanning at model import — models.md's design decision: hard
+  # block on a positive detection, no override. Self-hosted, consistent
+  # with every other dependency in this stack (ADR-0001/0002/0004/0005).
+  clamav:
+    image: clamav/clamav:latest
+    # No native arm64 image published upstream — emulated via Docker
+    # Desktop on Apple Silicon. Dev-only concession; unrelated to any
+    # design decision in models.md.
+    platform: linux/amd64
+    ports:
+      - "3310:3310"
+    healthcheck:
+      # clamd can take a couple of minutes on first boot while freshclam
+      # pulls virus definitions — generous start_period/retries for that.
+      test: ["CMD-SHELL", "echo PING | nc -w 3 127.0.0.1 3310 | grep -q PONG"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 180s
+
+  # Local model runtime (ADR-0001). MVP 0.1 treats this as a single shared
+  # runtime the `models` module registers/unloads GGUF files against — see
+  # models.md's Ollama integration notes, not per-version container
+  # orchestration (explicitly Phase 2+).
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - model_files:/models
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build:
       context: ../backend
@@ -44,15 +80,25 @@ services:
       OIDC_ISSUER: http://keycloak:8080/realms/hospital-platform
       OIDC_JWKS_URL: http://keycloak:8080/realms/hospital-platform/protocol/openid-connect/certs
       OIDC_AUDIENCE: hospital-platform-backend
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      OLLAMA_BASE_URL: http://ollama:11434
+      MODEL_STORAGE_DIR: /models
     ports:
       - "8000:8000"
     volumes:
       - ../backend:/app
+      - model_files:/models
     depends_on:
       postgres:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+      clamav:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+  model_files:

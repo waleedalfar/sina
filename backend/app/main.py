@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.audit.router import router as audit_router
 from app.core.exceptions import AuthenticationFailed, Conflict, NotFound, PolicyDenied
 from app.identity.router import router as identity_router
+from app.models.router import router as models_router
 
 app = FastAPI(title="Hospital Platform Backend", version="0.1.0")
 
@@ -30,6 +31,7 @@ async def _conflict_handler(request: Request, exc: Conflict):
 
 app.include_router(identity_router)
 app.include_router(audit_router)
+app.include_router(models_router)
 
 
 @app.get("/healthz")

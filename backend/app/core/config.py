@@ -32,5 +32,11 @@ class Settings(BaseSettings):
     # Default single tenant for MVP 0.1 — see core-entities.md.
     default_tenant_id: str = "00000000-0000-0000-0000-000000000000"
 
+    # models module — see models.md.
+    clamav_host: str = "clamav"
+    clamav_port: int = 3310
+    ollama_base_url: str = "http://ollama:11434"
+    model_storage_dir: str = "/models"
+
 
 settings = Settings()
