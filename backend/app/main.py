@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.audit.router import router as audit_router
 from app.core.exceptions import AuthenticationFailed, Conflict, NotFound, PolicyDenied
+from app.gateway.router import router as gateway_router
 from app.governance.router import router as governance_router
 from app.identity.router import router as identity_router
 from app.models.router import router as models_router
@@ -34,6 +35,7 @@ app.include_router(identity_router)
 app.include_router(audit_router)
 app.include_router(models_router)
 app.include_router(governance_router)
+app.include_router(gateway_router)
 
 
 @app.get("/healthz")

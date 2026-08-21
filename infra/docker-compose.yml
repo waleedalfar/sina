@@ -71,6 +71,18 @@ services:
       timeout: 5s
       retries: 20
 
+  # Gateway rate-limit counters — ADR-0005. Ephemeral, single purpose; no
+  # other module uses Redis (see that ADR's MVP vs Future).
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: ../backend
@@ -84,6 +96,7 @@ services:
       CLAMAV_PORT: "3310"
       OLLAMA_BASE_URL: http://ollama:11434
       MODEL_STORAGE_DIR: /models
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
@@ -97,6 +110,8 @@ services:
       clamav:
         condition: service_healthy
       ollama:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

@@ -71,6 +71,12 @@ class ModelVersion(Base, TenantScopedMixin):
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
 
+def ollama_model_name(model_version_id: uuid.UUID) -> str:
+    """Shared by `models` (start/stop) and `gateway` (inference routing) —
+    kept in one place so the naming convention can't drift between them."""
+    return f"hp{model_version_id.hex}"
+
+
 class RuntimeStatus(str, Enum):
     stopped = "stopped"
     starting = "starting"

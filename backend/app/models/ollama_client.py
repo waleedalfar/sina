@@ -97,3 +97,21 @@ class OllamaClient:
                 )
             except httpx.HTTPError as exc:
                 raise OllamaError(f"could not reach Ollama: {exc}") from exc
+
+    async def chat(
+        self, name: str, messages: list[dict], max_tokens: int | None = None
+    ) -> dict:
+        """Used by `gateway` for actual inference requests — see
+        gateway.md's Model Routing step. Non-streaming only for MVP 0.1."""
+        options = {"num_predict": max_tokens} if max_tokens else {}
+        async with httpx.AsyncClient(timeout=120) as client:
+            try:
+                r = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json={"model": name, "messages": messages, "stream": False, "options": options},
+                )
+            except httpx.HTTPError as exc:
+                raise OllamaError(f"could not reach Ollama (chat): {exc}") from exc
+        if r.status_code != 200:
+            raise OllamaError(f"Ollama /api/chat failed ({r.status_code}): {r.text}")
+        return r.json()

@@ -21,6 +21,7 @@ from app.models.models import (
     ModelRuntimeState,
     ModelVersion,
     RuntimeStatus,
+    ollama_model_name,
 )
 from app.models.ollama_client import OllamaClient, OllamaError
 from app.models.schemas import ModelIn, ModelOut, ModelRuntimeStateOut, ModelVersionOut
@@ -256,10 +257,10 @@ async def start_model_version(
     state.runtime_status = RuntimeStatus.starting.value
     await db.commit()
 
-    ollama_model_name = f"hp{version_id.hex}"
+    model_name = ollama_model_name(version_id)
     try:
-        await _ollama.create_model(ollama_model_name, path, actual_hash)
-        await _ollama.generate_healthcheck(ollama_model_name)
+        await _ollama.create_model(model_name, path, actual_hash)
+        await _ollama.generate_healthcheck(model_name)
     except OllamaError as exc:
         state.runtime_status = RuntimeStatus.error.value
         state.process_error = exc.reason
@@ -310,9 +311,9 @@ async def stop_model_version(
             await db.commit()
         return state  # idempotent no-op
 
-    ollama_model_name = f"hp{version_id.hex}"
+    model_name = ollama_model_name(version_id)
     try:
-        await _ollama.unload(ollama_model_name)
+        await _ollama.unload(model_name)
     except OllamaError:
         pass  # unload is best-effort; state below reflects our intent regardless
 

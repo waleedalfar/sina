@@ -38,5 +38,12 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
     model_storage_dir: str = "/models"
 
+    # gateway module — see gateway.md and ADR-0005.
+    redis_url: str = "redis://redis:6379/0"
+    rate_limit_requests: int = 60
+    rate_limit_window_seconds: int = 60
+    gateway_max_prompt_chars: int = 20000
+    gateway_max_output_chars: int = 20000
+
 
 settings = Settings()
