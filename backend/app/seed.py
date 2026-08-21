@@ -33,6 +33,10 @@ SEED_IDENTITIES = [
     ("00000000-0000-0000-0000-000000000003", "app-developer-1@example.org", "App Developer (seed)", "Application Developer"),
     ("00000000-0000-0000-0000-000000000004", "clinical-safety-1@example.org", "Clinical Safety Reviewer (seed)", "Clinical Safety Reviewer"),
     ("00000000-0000-0000-0000-000000000005", "auditor-1@example.org", "Auditor (seed)", "Auditor"),
+    ("00000000-0000-0000-0000-000000000006", "privacy-officer-1@example.org", "Privacy Officer (seed)", "Privacy Officer"),
+    ("00000000-0000-0000-0000-000000000007", "security-admin-1@example.org", "Security Administrator (seed)", "Security Administrator"),
+    ("00000000-0000-0000-0000-000000000008", "ai-governance-officer-1@example.org", "AI Governance Officer (seed)", "AI Governance Officer"),
+    ("00000000-0000-0000-0000-000000000009", "compliance-officer-1@example.org", "Compliance Officer (seed)", "Compliance Officer"),
 ]
 
 

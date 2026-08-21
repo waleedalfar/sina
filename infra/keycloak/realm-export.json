@@ -100,6 +100,46 @@
       "firstName": "Auditor",
       "lastName": "Test",
       "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000006",
+      "username": "privacy-officer-1",
+      "email": "privacy-officer-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Privacy",
+      "lastName": "Officer",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000007",
+      "username": "security-admin-1",
+      "email": "security-admin-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Security",
+      "lastName": "Administrator",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000008",
+      "username": "ai-governance-officer-1",
+      "email": "ai-governance-officer-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "AI Governance",
+      "lastName": "Officer",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000009",
+      "username": "compliance-officer-1",
+      "email": "compliance-officer-1@example.org",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Compliance",
+      "lastName": "Officer",
+      "credentials": [{ "type": "password", "value": "devpassword123", "temporary": false }]
     }
   ]
 }
