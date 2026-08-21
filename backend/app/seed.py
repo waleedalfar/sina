@@ -17,8 +17,10 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.db import AsyncSessionLocal
+from app.evaluation.fixtures import SEED_SUITES
+from app.evaluation.models import EvaluationCase, EvaluationSuite
 from app.identity.models import Identity, IdentityType, Role, RoleAssignment, Tenant
-from app.identity.roles import SEED_ROLES
+from app.identity.roles import SEED_ROLES, find_conflicting_kind
 
 DEFAULT_TENANT_ID = uuid.UUID(settings.default_tenant_id)
 
@@ -109,6 +111,28 @@ async def seed() -> None:
             if existing.scalar_one_or_none() is not None:
                 continue
 
+            # This script writes RoleAssignment rows directly (identity.md's
+            # documented bootstrap mechanism), bypassing the grant_role
+            # endpoint's conflict-matrix check. Found live: an identity
+            # manually re-roled during ad-hoc testing in an earlier session
+            # picked up a second, conflicting grant here because this
+            # idempotency check only looks at the *specific* role, not
+            # whether the identity now holds something that conflicts with
+            # it. Direct writes should still respect the matrix's intent.
+            held_kinds_result = await db.execute(
+                select(Role.kind)
+                .join(RoleAssignment, RoleAssignment.role_id == Role.id)
+                .where(RoleAssignment.identity_id == identity.id, RoleAssignment.revoked_at.is_(None))
+            )
+            held_kinds = set(held_kinds_result.scalars().all())
+            conflicting_kind = find_conflicting_kind(role.kind, held_kinds)
+            if conflicting_kind is not None:
+                print(
+                    f"skipping grant of {role.name} to {identity.display_name}: "
+                    f"conflicts with an already-held {conflicting_kind} role"
+                )
+                continue
+
             assignment = RoleAssignment(
                 id=uuid.uuid4(),
                 identity_id=identity.id,
@@ -119,6 +143,22 @@ async def seed() -> None:
             )
             db.add(assignment)
             print(f"granted {role.name} to {identity.display_name}")
+
+        for category, (version_label, cases) in SEED_SUITES.items():
+            existing_suite = await db.execute(
+                select(EvaluationSuite).where(
+                    EvaluationSuite.category == category, EvaluationSuite.version_label == version_label
+                )
+            )
+            suite = existing_suite.scalar_one_or_none()
+            if suite is None:
+                suite = EvaluationSuite(id=uuid.uuid4(), category=category, version_label=version_label)
+                db.add(suite)
+                await db.flush()
+                print(f"created evaluation suite {category} {version_label}")
+                for case in cases:
+                    db.add(EvaluationCase(id=uuid.uuid4(), suite_id=suite.id, **case))
+                print(f"  seeded {len(cases)} case(s)")
 
         await db.commit()
         print("seed complete")
