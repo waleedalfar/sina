@@ -47,10 +47,9 @@ class ModelRuntimeStateOut(BaseModel):
     last_hash_reverify_result: str | None
     memory_used_mb: int | None
     process_error: str | None
-    # production_eligible is intentionally NOT included yet — it's a
-    # computed check against governance.GovernanceApproval, which doesn't
-    # exist in code yet (governance is the next module in the build order).
-    # Adding a hardcoded placeholder here would be misleading; omitted
-    # until governance.md's write path actually exists to check against.
+    # Closed gap: this was deliberately omitted until `governance` existed
+    # to check against. It does now — computed in the router (needs a DB
+    # query governance owns), not stored here.
+    production_eligible: bool
 
     model_config = {"from_attributes": True}

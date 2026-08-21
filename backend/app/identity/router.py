@@ -55,6 +55,21 @@ async def get_me(current: ResolvedIdentity = Depends(get_current_identity)):
     )
 
 
+@router.get("/roles", response_model=list[RoleOut])
+async def list_roles(
+    db: AsyncSession = Depends(get_db),
+    _: ResolvedIdentity = Depends(get_current_identity),
+):
+    """
+    Closes a real gap found during live testing: there was no way to
+    discover role ids other than already-held roles, so granting an
+    unheld role required querying Postgres directly. Broad read access,
+    matching the pattern for other reference-data reads in this codebase.
+    """
+    result = await db.execute(select(Role))
+    return [_to_role_out(r) for r in result.scalars().all()]
+
+
 @router.get("/identities", response_model=list[IdentityOut])
 async def list_identities(
     db: AsyncSession = Depends(get_db),

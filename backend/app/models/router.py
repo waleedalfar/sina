@@ -35,6 +35,43 @@ def _gguf_path(model_version_id: uuid.UUID) -> str:
     return os.path.join(settings.model_storage_dir, f"{model_version_id}.gguf")
 
 
+async def _to_runtime_state_out(db: AsyncSession, state: ModelRuntimeState) -> ModelRuntimeStateOut:
+    """
+    Closes a gap left open when `governance` didn't exist yet:
+    `production_eligible` checks for an approved `ai_governance`
+    GovernanceApproval on this version — imported here rather than at
+    module load time to avoid a hard import-order dependency, though
+    governance.models itself doesn't import back into models, so this
+    isn't a true cycle.
+    """
+    from app.governance.models import (
+        ApprovalCategory,
+        ApprovalDecision,
+        GovernanceApproval,
+        ResourceType,
+    )
+
+    result = await db.execute(
+        select(GovernanceApproval).where(
+            GovernanceApproval.resource_type == ResourceType.model_version.value,
+            GovernanceApproval.resource_id == state.model_version_id,
+            GovernanceApproval.category == ApprovalCategory.ai_governance.value,
+            GovernanceApproval.decision == ApprovalDecision.approved.value,
+        )
+    )
+    return ModelRuntimeStateOut(
+        model_version_id=state.model_version_id,
+        runtime_status=state.runtime_status,
+        last_started_at=state.last_started_at,
+        last_stopped_at=state.last_stopped_at,
+        last_health_check_at=state.last_health_check_at,
+        last_hash_reverify_result=state.last_hash_reverify_result,
+        memory_used_mb=state.memory_used_mb,
+        process_error=state.process_error,
+        production_eligible=result.scalar_one_or_none() is not None,
+    )
+
+
 def _write_and_hash_sync(path: str, content: bytes) -> str:
     hasher = hashlib.sha256()
     hasher.update(content)
@@ -290,7 +327,7 @@ async def start_model_version(
         payload={},
     )
     await db.commit()
-    return state
+    return await _to_runtime_state_out(db, state)
 
 
 @router.post("/model-versions/{version_id}/stop", response_model=ModelRuntimeStateOut)
@@ -309,7 +346,7 @@ async def stop_model_version(
             state = ModelRuntimeState(model_version_id=version_id)
             db.add(state)
             await db.commit()
-        return state  # idempotent no-op
+        return await _to_runtime_state_out(db, state)  # idempotent no-op
 
     model_name = ollama_model_name(version_id)
     try:
@@ -329,7 +366,7 @@ async def stop_model_version(
         payload={},
     )
     await db.commit()
-    return state
+    return await _to_runtime_state_out(db, state)
 
 
 @router.get("/model-versions/{version_id}/runtime-state", response_model=ModelRuntimeStateOut)
@@ -341,4 +378,4 @@ async def get_runtime_state(
     state = await db.get(ModelRuntimeState, version_id)
     if state is None:
         raise NotFound(f"no runtime state for model version {version_id}")
-    return state
+    return await _to_runtime_state_out(db, state)
