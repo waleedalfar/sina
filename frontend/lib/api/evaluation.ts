@@ -13,6 +13,10 @@ export interface EvaluationCategoryResult {
 export interface EvaluationCaseResult {
   id: string;
   case_id: string;
+  suite_id: string;
+  input_prompt: string;
+  scoring_method: "marker_match" | "canary_check" | "exact_fuzzy_match" | "human_review";
+  scoring_criteria: string;
   actual_output: string;
   passed: boolean;
   scored_by: "automated" | "human";

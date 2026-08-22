@@ -13,6 +13,7 @@ import {
   XCircle,
   Clock3,
   Boxes,
+  FlaskConical,
 } from "lucide-react";
 import {
   useModel,
@@ -22,6 +23,7 @@ import {
   useEvaluationRuns,
   useModelVersionMutations,
 } from "@/lib/hooks/useModel";
+import { useTriggerEvaluationRun } from "@/lib/hooks/useEvaluation";
 import { useMe } from "@/lib/hooks/useMe";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
@@ -41,6 +43,7 @@ import {
   SET_MODEL_RISK_ROLES,
   RECORD_MODEL_APPROVAL_ROLES,
   IMPORT_MODEL_VERSION_ROLES,
+  EVALUATION_TRIGGER_ROLES,
 } from "@/lib/auth/roles";
 import { ApiError } from "@/lib/api/client";
 import type { ModelDashboardRow, RiskClassification, ApprovalDecision } from "@/types/api";
@@ -112,13 +115,16 @@ function VersionCard({ modelId, row }: { modelId: string; row: ModelDashboardRow
   const { data: runs } = useEvaluationRuns(row.version_id);
   const { data: me } = useMe();
   const { start, stop, setRiskClassification, recordApproval } = useModelVersionMutations(row.version_id);
+  const triggerEval = useTriggerEvaluationRun(row.version_id);
   const [evidenceRunId, setEvidenceRunId] = useState("");
 
   const canStartStop = me && hasAnyRole(me.roles, START_STOP_MODEL_ROLES);
   const canSetRisk = me && hasAnyRole(me.roles, SET_MODEL_RISK_ROLES);
+  const canTriggerEval = me && hasAnyRole(me.roles, EVALUATION_TRIGGER_ROLES);
   const isImporter = full && me?.id === full.imported_by;
   const canApprove = me && hasAnyRole(me.roles, RECORD_MODEL_APPROVAL_ROLES) && !isImporter && !row.ai_governance_decision;
   const completeRuns = (runs ?? []).filter((r) => r.status === "complete");
+  const latestRun = runs?.[0];
 
   const isRunning = row.runtime_status === "running" || row.runtime_status === "starting";
   const isClean = full?.malware_scan_result === "clean";
@@ -215,16 +221,32 @@ function VersionCard({ modelId, row }: { modelId: string; row: ModelDashboardRow
           <div className="flex items-center gap-2">
             <span className="text-xs text-tertiary">Evaluation</span>
             {row.evaluation_summary && Object.keys(row.evaluation_summary).length > 0 ? (
-              <div className="flex gap-1.5">
-                {Object.entries(row.evaluation_summary).map(([cat, passed]) => (
-                  <span key={cat} className="inline-flex items-center gap-1 text-xs text-secondary">
-                    <span className={`h-2 w-2 rounded-full ${passed ? "bg-success" : "bg-danger"}`} />
-                    {cat.replace("_", " ")}
-                  </span>
-                ))}
-              </div>
+              latestRun ? (
+                <Link href={`/evaluations/${latestRun.id}`} className="flex gap-1.5 hover:underline">
+                  {Object.entries(row.evaluation_summary).map(([cat, passed]) => (
+                    <span key={cat} className="inline-flex items-center gap-1 text-xs text-secondary">
+                      <span className={`h-2 w-2 rounded-full ${passed ? "bg-success" : "bg-danger"}`} />
+                      {cat.replace("_", " ")}
+                    </span>
+                  ))}
+                </Link>
+              ) : (
+                <div className="flex gap-1.5">
+                  {Object.entries(row.evaluation_summary).map(([cat, passed]) => (
+                    <span key={cat} className="inline-flex items-center gap-1 text-xs text-secondary">
+                      <span className={`h-2 w-2 rounded-full ${passed ? "bg-success" : "bg-danger"}`} />
+                      {cat.replace("_", " ")}
+                    </span>
+                  ))}
+                </div>
+              )
             ) : (
               <span className="text-xs text-tertiary">No runs yet</span>
+            )}
+            {canTriggerEval && (
+              <Button variant="ghost" size="sm" disabled={triggerEval.isPending} onClick={() => triggerEval.mutate()}>
+                <FlaskConical className="h-3.5 w-3.5" /> {triggerEval.isPending ? "Running… (can take a couple minutes)" : "Run Evaluation"}
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -236,6 +258,11 @@ function VersionCard({ modelId, row }: { modelId: string; row: ModelDashboardRow
             )}
           </div>
         </div>
+        {triggerEval.error instanceof Error && (
+          <p className="text-xs text-danger">
+            {triggerEval.error instanceof ApiError ? triggerEval.error.detail : triggerEval.error.message}
+          </p>
+        )}
 
         {canApprove && (
           <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">

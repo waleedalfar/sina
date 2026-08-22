@@ -29,6 +29,16 @@ class EvaluationCategoryResultOut(BaseModel):
 class EvaluationCaseResultOut(BaseModel):
     id: uuid.UUID
     case_id: uuid.UUID
+    # Joined in from EvaluationCase by the router (not columns on
+    # EvaluationCaseResult itself) — without these, a human reviewer sees
+    # only actual_output with no idea what was asked or what to check for,
+    # making the human-review queue unusable. Not in evaluation.md's
+    # original per-case schema; closed here the same way the doc's own
+    # Revision Log closes the sibling human-review-endpoint gap.
+    suite_id: uuid.UUID
+    input_prompt: str
+    scoring_method: str
+    scoring_criteria: str
     actual_output: str
     passed: bool
     scored_by: str

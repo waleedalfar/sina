@@ -1,5 +1,6 @@
 import type {
   ApprovalDecision,
+  EvaluationRunStatus,
   LifecycleState,
   MalwareScanResult,
   RiskClassification,
@@ -95,3 +96,15 @@ export function severityTone(severity: Severity): Tone {
   if (severity === "warning") return "warning";
   return "info";
 }
+
+export function runStatusTone(status: EvaluationRunStatus): Tone {
+  if (status === "complete") return "success";
+  if (status === "failed") return "danger";
+  return "info";
+}
+
+export const RUN_STATUS_LABEL: Record<EvaluationRunStatus, string> = {
+  running: "Running",
+  complete: "Complete",
+  failed: "Failed",
+};

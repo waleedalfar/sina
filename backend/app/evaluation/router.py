@@ -115,12 +115,40 @@ async def get_evaluation_run(
     category_results = await db.execute(
         select(EvaluationCategoryResult).where(EvaluationCategoryResult.run_id == run_id)
     )
-    case_results = await db.execute(select(EvaluationCaseResult).where(EvaluationCaseResult.run_id == run_id))
+    case_results = list(
+        (await db.execute(select(EvaluationCaseResult).where(EvaluationCaseResult.run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    cases_by_id = {
+        case.id: case
+        for case in (
+            await db.execute(
+                select(EvaluationCase).where(EvaluationCase.id.in_({cr.case_id for cr in case_results}))
+            )
+        )
+        .scalars()
+        .all()
+    }
 
     return EvaluationRunDetailOut(
         **EvaluationRunOut.model_validate(run).model_dump(),
         category_results=[EvaluationCategoryResultOut.model_validate(r) for r in category_results.scalars().all()],
-        case_results=[EvaluationCaseResultOut.model_validate(r) for r in case_results.scalars().all()],
+        case_results=[
+            EvaluationCaseResultOut(
+                id=cr.id,
+                case_id=cr.case_id,
+                suite_id=cases_by_id[cr.case_id].suite_id,
+                input_prompt=cases_by_id[cr.case_id].input_prompt,
+                scoring_method=cases_by_id[cr.case_id].scoring_method,
+                scoring_criteria=cases_by_id[cr.case_id].scoring_criteria,
+                actual_output=cr.actual_output,
+                passed=cr.passed,
+                scored_by=cr.scored_by,
+                reviewed_by=cr.reviewed_by,
+            )
+            for cr in case_results
+        ],
     )
 
 
@@ -168,4 +196,15 @@ async def submit_human_review(
     category_result.passed = category_result.cases_passed == category_result.cases_total
 
     await db.commit()
-    return case_result
+    return EvaluationCaseResultOut(
+        id=case_result.id,
+        case_id=case_result.case_id,
+        suite_id=case.suite_id,
+        input_prompt=case.input_prompt,
+        scoring_method=case.scoring_method,
+        scoring_criteria=case.scoring_criteria,
+        actual_output=case_result.actual_output,
+        passed=case_result.passed,
+        scored_by=case_result.scored_by,
+        reviewed_by=case_result.reviewed_by,
+    )

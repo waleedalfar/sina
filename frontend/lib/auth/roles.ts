@@ -53,3 +53,9 @@ export const START_STOP_MODEL_ROLES = ["ML Engineer", "Platform Administrator"];
 export const SET_MODEL_RISK_ROLES = ["AI Governance Officer", "Platform Administrator"];
 /** Mirrors backend/app/governance/router.py's `record_model_version_approval`. */
 export const RECORD_MODEL_APPROVAL_ROLES = ["AI Governance Officer"];
+
+// --- evaluation module ---
+
+/** Mirrors backend/app/evaluation/router.py's `_TRIGGER_ROLES` — used for
+ * both triggering a run and submitting a human review (same role set). */
+export const EVALUATION_TRIGGER_ROLES = ["ML Engineer", "Platform Administrator", "Auditor"];
