@@ -2,15 +2,20 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, Plus } from "lucide-react";
 import { useDashboardApplications } from "@/lib/hooks/useDashboard";
+import { useMe } from "@/lib/hooks/useMe";
 import { Card } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { lifecycleTone, LIFECYCLE_LABEL, riskTone } from "@/lib/status";
+import { hasAnyRole, CREATE_APPLICATION_ROLES } from "@/lib/auth/roles";
 
 export default function ApplicationsPage() {
   const { data, isLoading } = useDashboardApplications();
+  const { data: me } = useMe();
+  const canCreate = me && hasAnyRole(me.roles, CREATE_APPLICATION_ROLES);
 
   return (
     <div className="space-y-5">
@@ -19,6 +24,13 @@ export default function ApplicationsPage() {
           <h1 className="text-lg font-semibold text-primary">Applications</h1>
           <p className="text-sm text-secondary mt-0.5">Every AI Application registered on the platform and where it stands in governance.</p>
         </div>
+        {canCreate && (
+          <Link href="/applications/new">
+            <Button variant="primary" size="sm">
+              <Plus className="h-3.5 w-3.5" /> New Application
+            </Button>
+          </Link>
+        )}
       </div>
 
       {isLoading && (

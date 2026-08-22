@@ -22,6 +22,9 @@ export const SIGNOFF_CATEGORY_ROLE: Record<string, string> = {
 
 export const SUSPEND_ROLES = ["Platform Administrator", "Security Administrator", "AI Governance Officer"];
 
+/** Mirrors backend/app/governance/router.py's `create_application`. */
+export const CREATE_APPLICATION_ROLES = ["Application Developer"];
+
 /** Mirrors backend/app/governance/router.py's `submit_risk_questionnaire`
  * `require_role` list — Application Developer or any sign-off role. */
 export const RISK_QUESTIONNAIRE_ROLES = ["Application Developer", ...Object.values(SIGNOFF_CATEGORY_ROLE)];
