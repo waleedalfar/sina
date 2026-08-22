@@ -30,15 +30,37 @@ enterprise IdP or a hardened Keycloak instance with real secrets management
 
 ## Talking to Keycloak from the host vs. from a container
 
-Keycloak's issuer claim is derived from the request's Host header. The
-backend validates tokens against `http://keycloak:8080/realms/hospital-platform`
-(the docker-network hostname) — so **always obtain test tokens from inside
-the docker network**, not by hitting `localhost:8080` from the host, or the
-`iss` claim won't match and validation will fail. E.g.:
+Keycloak's issuer is **pinned** via `KC_HOSTNAME=http://localhost:8080` in
+`docker-compose.yml`, so every token carries `iss =
+http://localhost:8080/realms/hospital-platform` regardless of which network
+path was used to reach Keycloak (docker-network hostname or the published
+host port) — the backend validates against that same pinned value
+(`OIDC_ISSUER`). This means tokens can now be obtained either way:
 
 ```
+# from the host (what the frontend's browser-based OIDC flow does)
+curl -s -X POST \
+  http://localhost:8080/realms/hospital-platform/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=hospital-platform-web \
+  -d username=platform-admin -d password=devpassword123
+
+# from inside the docker network (equivalent, still works)
 docker compose exec backend curl -s -X POST \
   http://keycloak:8080/realms/hospital-platform/protocol/openid-connect/token \
   -d grant_type=password -d client_id=hospital-platform-web \
   -d username=platform-admin -d password=devpassword123
 ```
+
+Before this pin, only the docker-network path produced a token the backend
+would accept — see `identity.md`'s Revision Log for why this changed (it
+was a real blocker for the frontend's browser-based login flow, which has
+no docker-network access).
+
+**If you have an existing local environment from before this change**: run
+`docker compose exec backend python -m app.seed` once after pulling this
+change. Identity lookup is keyed by `(issuer, external_subject)` — pinning
+the issuer orphans every previously-provisioned identity (including the
+ten seeded test identities), so without a re-seed, logging in will
+JIT-provision a fresh identity with zero roles instead of resolving to the
+existing seeded one. The seed script is idempotent, so this is safe to run
+any number of times.
