@@ -70,3 +70,39 @@ export function canReadAudit(roles: Role[]): boolean {
 
 /** Mirrors backend/app/audit/router.py's `verify_integrity` `require_role`. */
 export const VERIFY_INTEGRITY_ROLES = ["Auditor", "Platform Administrator"];
+
+// --- identity module ---
+
+/** Mirrors backend/app/identity/router.py's identity-admin endpoints —
+ * list/grant/revoke are all Platform-Administrator-only. */
+export const IDENTITY_ADMIN_ROLES = ["Platform Administrator"];
+
+/** Mirrors backend/app/identity/roles.py's `_CONFLICT_PAIRS` exactly — the
+ * one place this matrix lives on the backend; kept here so the frontend
+ * can disable/explain a conflicting grant before it's even attempted,
+ * rather than just letting it 409 (see frontend.md's Identity/Admin scope). */
+const CONFLICT_PAIRS: [RoleKind, RoleKind][] = [
+  ["readonly", "admin"],
+  ["readonly", "builder"],
+  ["readonly", "signoff"],
+  ["readonly", "permitted_user"],
+  ["builder", "signoff"],
+  ["admin", "signoff"],
+];
+const CONFLICTS = new Set<string>();
+for (const [a, b] of CONFLICT_PAIRS) {
+  CONFLICTS.add(`${a}:${b}`);
+  CONFLICTS.add(`${b}:${a}`);
+}
+
+export function kindsConflict(a: RoleKind, b: RoleKind): boolean {
+  return CONFLICTS.has(`${a}:${b}`);
+}
+
+/** Returns the first held kind that conflicts with `candidateKind`, or null. */
+export function findConflictingKind(candidateKind: RoleKind, heldKinds: RoleKind[]): RoleKind | null {
+  for (const held of heldKinds) {
+    if (kindsConflict(candidateKind, held)) return held;
+  }
+  return null;
+}
