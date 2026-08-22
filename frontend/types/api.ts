@@ -133,7 +133,10 @@ export interface ModelVersion {
   base_model_version_id: string | null;
   known_limitations: string | null;
   malware_scan_result: MalwareScanResult;
+  malware_scanned_at: string | null;
   risk_classification: RiskClassification | null;
+  imported_by: string;
+  imported_at: string;
 }
 
 export interface ModelRuntimeState {

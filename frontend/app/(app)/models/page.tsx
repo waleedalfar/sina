@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Boxes, CheckCircle2, XCircle } from "lucide-react";
 import { dashboardApi } from "@/lib/api/dashboard";
@@ -10,6 +11,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { riskTone, runtimeTone, RUNTIME_LABEL } from "@/lib/status";
 
 export default function ModelsPage() {
+  const router = useRouter();
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-models"],
     queryFn: dashboardApi.models,
@@ -62,7 +64,8 @@ export default function ModelsPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.2, delay: i * 0.03 }}
-                  className="border-b border-hairline last:border-0 hover:bg-raised transition-colors"
+                  onClick={() => router.push(`/models/${row.model_id}`)}
+                  className="cursor-pointer border-b border-hairline last:border-0 hover:bg-raised transition-colors"
                 >
                   <td className="px-5 py-3.5 font-medium text-primary">{row.model_name}</td>
                   <td className="px-5 py-3.5 font-mono text-xs text-secondary">{row.version_label}</td>

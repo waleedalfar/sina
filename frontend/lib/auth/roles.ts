@@ -42,3 +42,14 @@ export const NON_TERMINAL_LIFECYCLE_STATES = [
   "production",
   "suspended",
 ] as const;
+
+// --- models module ---
+
+/** Mirrors backend/app/models/router.py's `import_model_version`. */
+export const IMPORT_MODEL_VERSION_ROLES = ["ML Engineer"];
+/** Mirrors backend/app/models/router.py's `start_model_version`/`stop_model_version`. */
+export const START_STOP_MODEL_ROLES = ["ML Engineer", "Platform Administrator"];
+/** Mirrors backend/app/governance/router.py's `set_model_version_risk_classification`. */
+export const SET_MODEL_RISK_ROLES = ["AI Governance Officer", "Platform Administrator"];
+/** Mirrors backend/app/governance/router.py's `record_model_version_approval`. */
+export const RECORD_MODEL_APPROVAL_ROLES = ["AI Governance Officer"];
