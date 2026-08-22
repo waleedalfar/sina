@@ -111,6 +111,7 @@ async def dashboard_applications(
                 GovernanceApproval.resource_type == ResourceType.application.value,
                 GovernanceApproval.resource_id == application.id,
                 GovernanceApproval.decision == ApprovalDecision.approved.value,
+                GovernanceApproval.superseded_at.is_(None),
             )
         )
         approved_count = len(list(approvals_result.scalars().all()))
@@ -327,6 +328,7 @@ async def my_approval_queue(
             select(GovernanceApproval.category).where(
                 GovernanceApproval.resource_type == ResourceType.application.value,
                 GovernanceApproval.resource_id == application.id,
+                GovernanceApproval.superseded_at.is_(None),
             )
         )
         already_decided = set(existing_result.scalars().all())

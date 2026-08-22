@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.models import Severity
@@ -318,6 +318,23 @@ async def transition_application(
 
     from_state = application.lifecycle_state
     application.lifecycle_state = body.to_state
+
+    if body.to_state == LifecycleState.governance_review.value:
+        # Re-entry into governance_review (from evaluation, or from
+        # suspended) starts a new review cycle. Supersede the prior cycle's
+        # approval rows so the distinct-signer/duplicate-category checks in
+        # record_application_approval don't see stale decisions from a
+        # cycle that's over — see governance.md's "review-round semantics".
+        await db.execute(
+            update(GovernanceApproval)
+            .where(
+                GovernanceApproval.resource_type == ResourceType.application.value,
+                GovernanceApproval.resource_id == application_id,
+                GovernanceApproval.superseded_at.is_(None),
+            )
+            .values(superseded_at=datetime.now(UTC))
+        )
+
     await audit_emit(
         db,
         tenant_id=application.tenant_id,
@@ -392,6 +409,7 @@ async def record_application_approval(
         select(GovernanceApproval).where(
             GovernanceApproval.resource_type == ResourceType.application.value,
             GovernanceApproval.resource_id == application_id,
+            GovernanceApproval.superseded_at.is_(None),
         )
     )
     existing_rows = list(existing_result.scalars().all())

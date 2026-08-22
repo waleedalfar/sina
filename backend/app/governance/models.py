@@ -135,3 +135,7 @@ class GovernanceApproval(Base, TenantScopedMixin):
     evidence_evaluation_run_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("evaluation_run.id"), nullable=True
     )
+    # Set when the application re-enters governance_review after a rejection
+    # or suspension, so the prior cycle's rows stop counting toward the
+    # distinct-signer/duplicate-category checks. NULL = still active.
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

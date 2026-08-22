@@ -99,6 +99,7 @@ class GovernanceApprovalOut(BaseModel):
     decided_at: datetime
     comment: str | None
     evidence_evaluation_run_id: uuid.UUID | None
+    superseded_at: datetime | None
 
     model_config = {"from_attributes": True}
 
