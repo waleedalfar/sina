@@ -180,7 +180,9 @@ async def submit_risk_questionnaire(
     application_id: uuid.UUID,
     body: RiskQuestionnaireIn,
     db: AsyncSession = Depends(get_db),
-    current: ResolvedIdentity = Depends(get_current_identity),
+    current: ResolvedIdentity = Depends(
+        require_role("Application Developer", *CATEGORY_ROLE.values())
+    ),
 ):
     application = await _get_application_or_404(db, application_id)
     suggested = compute_suggested_classification(body.model_dump())
