@@ -59,3 +59,14 @@ export const RECORD_MODEL_APPROVAL_ROLES = ["AI Governance Officer"];
 /** Mirrors backend/app/evaluation/router.py's `_TRIGGER_ROLES` — used for
  * both triggering a run and submitting a human review (same role set). */
 export const EVALUATION_TRIGGER_ROLES = ["ML Engineer", "Platform Administrator", "Auditor"];
+
+// --- audit module ---
+
+/** Mirrors backend/app/audit/router.py's `_READ_KINDS` — admin, signoff,
+ * and readonly kinds may read audit events; builder/permitted_user cannot. */
+export function canReadAudit(roles: Role[]): boolean {
+  return hasRoleKind(roles, "admin") || hasRoleKind(roles, "signoff") || hasRoleKind(roles, "readonly");
+}
+
+/** Mirrors backend/app/audit/router.py's `verify_integrity` `require_role`. */
+export const VERIFY_INTEGRITY_ROLES = ["Auditor", "Platform Administrator"];

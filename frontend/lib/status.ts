@@ -97,6 +97,12 @@ export function severityTone(severity: Severity): Tone {
   return "info";
 }
 
+export const SEVERITY_LABEL: Record<Severity, string> = {
+  security_critical: "Security Critical",
+  warning: "Warning",
+  info: "Info",
+};
+
 export function runStatusTone(status: EvaluationRunStatus): Tone {
   if (status === "complete") return "success";
   if (status === "failed") return "danger";
