@@ -36,14 +36,29 @@ export function LifecycleStepper({ state }: { state: LifecycleState }) {
     // keeps every step at its natural size and lets the container scroll,
     // instead of `flex-1` connectors collapsing to nothing at 390px.
     <div className="-mx-1 overflow-x-auto px-1 pb-1">
-      <div className="flex min-w-max items-center md:min-w-0">
+      {/* An ordered list of steps, not decorative chrome: this is the
+          single most important fact on an Application page, and until this
+          markup existed it was conveyed by CSS colour alone — which
+          frontend.md's accessibility section explicitly forbids ("never
+          colour alone"). Each step carries its state as real text for
+          screen readers, and the current one is marked `aria-current`. */}
+      <ol
+        aria-label="Application lifecycle"
+        className="flex min-w-max items-center md:min-w-0"
+      >
         {MAIN_PATH.map((step, i) => {
           const isDone = i < currentIndex;
           const isCurrent = i === currentIndex;
           const isFuture = i > currentIndex;
 
+          const stateLabel = isDone ? "completed" : isCurrent ? "current state" : "not started";
+
           return (
-            <div key={step} className="flex items-center flex-1 last:flex-none">
+            <li
+              key={step}
+              aria-current={isCurrent ? "step" : undefined}
+              className="flex items-center flex-1 last:flex-none"
+            >
               <div className="flex flex-col items-center gap-2 shrink-0">
                 <div className="relative flex h-8 w-8 items-center justify-center">
                   {isCurrent && (
@@ -61,7 +76,9 @@ export function LifecycleStepper({ state }: { state: LifecycleState }) {
                       isFuture && "border-hairline bg-surface text-tertiary",
                     )}
                   >
-                    {isDone ? <Check className="h-4 w-4" strokeWidth={3} /> : i + 1}
+                    <span aria-hidden="true">
+                      {isDone ? <Check className="h-4 w-4" strokeWidth={3} /> : i + 1}
+                    </span>
                   </div>
                 </div>
                 <span
@@ -73,15 +90,21 @@ export function LifecycleStepper({ state }: { state: LifecycleState }) {
                   )}
                 >
                   {LIFECYCLE_LABEL[step]}
+                  <span className="sr-only">
+                    {` — step ${i + 1} of ${MAIN_PATH.length}, ${stateLabel}`}
+                  </span>
                 </span>
               </div>
               {i < MAIN_PATH.length - 1 && (
-                <div className={cn("h-0.5 flex-1 mx-1 rounded-full mb-5", isDone ? "bg-success" : "bg-hairline")} />
+                <div
+                  aria-hidden="true"
+                  className={cn("h-0.5 flex-1 mx-1 rounded-full mb-5", isDone ? "bg-success" : "bg-hairline")}
+                />
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 }
@@ -91,7 +114,7 @@ function BranchState({ state }: { state: "suspended" | "retired" }) {
   const Icon = isSuspended ? Ban : Archive;
   return (
     <div className="flex items-center gap-3 rounded-lg border border-danger/25 bg-danger-bg px-4 py-3">
-      <Icon className="h-5 w-5 text-danger" strokeWidth={2} />
+      <Icon aria-hidden="true" className="h-5 w-5 text-danger" strokeWidth={2} />
       <div>
         <p className="text-sm font-semibold text-danger">{LIFECYCLE_LABEL[state]}</p>
         <p className="text-xs text-secondary">

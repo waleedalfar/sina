@@ -82,7 +82,7 @@ export default function PlaygroundPage() {
               front is more useful than discovering it in a 403. */}
           {selected && !["staging", "production"].includes(selected.lifecycle_state) && (
             <p className="flex items-start gap-2 rounded-lg border border-hairline bg-raised p-3 text-xs text-tertiary">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <Info aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 This application is in <strong className="text-secondary">{selected.lifecycle_state}</strong>.
                 The gateway only serves <strong className="text-secondary">staging</strong> and{" "}
@@ -120,8 +120,14 @@ export default function PlaygroundPage() {
         </CardContent>
       </Card>
 
+      {/* The verdict is the whole point of this screen, and it arrives
+          without any focus change — so it is announced. A denial is
+          `alert` (assertive: the request was refused, that interrupts);
+          a completion is `status` (polite: it can wait for a pause). */}
+      <div aria-live="polite" aria-atomic="true">
+        {send.isSuccess && <CompletionPanel response={send.data} application={selected} />}
+      </div>
       {send.isError && <DenialPanel error={send.error} />}
-      {send.isSuccess && <CompletionPanel response={send.data} application={selected} />}
     </div>
   );
 }
@@ -150,11 +156,11 @@ function DenialPanel({ error }: { error: Error }) {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div role="alert" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldX className={`h-4 w-4 ${isPolicyDenial ? "text-rose-400" : "text-amber-400"}`} />
+            <ShieldX aria-hidden="true" className={`h-4 w-4 ${isPolicyDenial ? "text-rose-400" : "text-amber-400"}`} />
             {isPolicyDenial ? "Denied by policy" : operationalLabel[status] ?? "Request failed"}
             <StatusPill tone={isPolicyDenial ? "danger" : "warning"} label={String(status || "error")} />
           </CardTitle>
@@ -193,7 +199,7 @@ function CompletionPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <ShieldCheck aria-hidden="true" className="h-4 w-4 text-emerald-400" />
             Allowed
             <StatusPill tone="success" label="200" />
           </CardTitle>
@@ -221,7 +227,7 @@ function CompletionPanel({
             )}
           </dl>
           <p className="flex items-center gap-1.5 text-xs text-tertiary">
-            <CornerDownLeft className="h-3 w-3" />
+            <CornerDownLeft aria-hidden="true" className="h-3 w-3" />
             Passed all 7 checklist steps; recorded as <code className="text-secondary">gateway.request_served</code>.
           </p>
         </CardContent>

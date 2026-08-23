@@ -107,12 +107,12 @@ export default function AuditPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left text-xs font-medium uppercase tracking-wide text-tertiary">
-                <th className="px-5 py-3">Seq</th>
-                <th className="px-5 py-3">Event</th>
-                <th className="px-5 py-3">Severity</th>
-                <th className="px-5 py-3">Occurred</th>
-                <th className="px-5 py-3">Actor</th>
-                <th className="px-5 py-3">Resource</th>
+                <th scope="col" className="px-5 py-3">Seq</th>
+                <th scope="col" className="px-5 py-3">Event</th>
+                <th scope="col" className="px-5 py-3">Severity</th>
+                <th scope="col" className="px-5 py-3">Occurred</th>
+                <th scope="col" className="px-5 py-3">Actor</th>
+                <th scope="col" className="px-5 py-3">Resource</th>
               </tr>
             </thead>
             <tbody>

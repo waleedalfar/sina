@@ -30,13 +30,13 @@ export default function ModelsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left text-xs font-medium uppercase tracking-wide text-tertiary">
-                <th className="px-5 py-3">Model</th>
-                <th className="px-5 py-3">Version</th>
-                <th className="px-5 py-3">Runtime</th>
-                <th className="px-5 py-3">Risk</th>
-                <th className="px-5 py-3">AI Governance</th>
-                <th className="px-5 py-3">Evaluation</th>
-                <th className="px-5 py-3">Applications</th>
+                <th scope="col" className="px-5 py-3">Model</th>
+                <th scope="col" className="px-5 py-3">Version</th>
+                <th scope="col" className="px-5 py-3">Runtime</th>
+                <th scope="col" className="px-5 py-3">Risk</th>
+                <th scope="col" className="px-5 py-3">AI Governance</th>
+                <th scope="col" className="px-5 py-3">Evaluation</th>
+                <th scope="col" className="px-5 py-3">Applications</th>
               </tr>
             </thead>
             <tbody>

@@ -52,7 +52,15 @@ export default function AuditIntegrityPage() {
         </p>
       </div>
 
-      <Card className="p-8 flex flex-col items-center text-center gap-4">
+      {/* The whole purpose of this page is the verdict, and it replaces
+          the panel in place without moving focus — so the result region is
+          live. `polite` rather than `alert`: the user pressed the button
+          and is waiting for exactly this, so it need not interrupt. */}
+      <Card
+        aria-live="polite"
+        aria-busy={verify.isPending}
+        className="p-8 flex flex-col items-center text-center gap-4"
+      >
         {!verify.data && !verify.isPending && (
           <>
             <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-raised text-tertiary">

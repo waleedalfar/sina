@@ -24,11 +24,11 @@ export default function EvaluationsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left text-xs font-medium uppercase tracking-wide text-tertiary">
-                <th className="px-5 py-3">Model</th>
-                <th className="px-5 py-3">Version</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Triggered</th>
-                <th className="px-5 py-3">Categories</th>
+                <th scope="col" className="px-5 py-3">Model</th>
+                <th scope="col" className="px-5 py-3">Version</th>
+                <th scope="col" className="px-5 py-3">Status</th>
+                <th scope="col" className="px-5 py-3">Triggered</th>
+                <th scope="col" className="px-5 py-3">Categories</th>
               </tr>
             </thead>
             <tbody>
