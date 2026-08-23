@@ -8,3 +8,14 @@ venv/
 backend/.env
 .DS_Store
 node_modules/
+
+# Internal design record — kept locally, deliberately not published.
+# The public summary of what these decided is docs/ARCHITECTURE.md.
+/MasterPrompt.md
+/CLAUDE.md
+/AGENTS.md
+/DEVELOPMENT_RULES.md
+/docs/modules/
+/docs/decisions/
+/docs/architecture/
+/.claude/
