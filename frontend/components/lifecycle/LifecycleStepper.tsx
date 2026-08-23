@@ -30,51 +30,58 @@ export function LifecycleStepper({ state }: { state: LifecycleState }) {
   const currentIndex = MAIN_PATH.indexOf(state);
 
   return (
-    <div className="flex items-center">
-      {MAIN_PATH.map((step, i) => {
-        const isDone = i < currentIndex;
-        const isCurrent = i === currentIndex;
-        const isFuture = i > currentIndex;
+    // Scrolls horizontally rather than compressing below `md`. The signature
+    // component of this console is the lifecycle, and a squashed one that
+    // drops its labels communicates less than one you swipe: `min-w-max`
+    // keeps every step at its natural size and lets the container scroll,
+    // instead of `flex-1` connectors collapsing to nothing at 390px.
+    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <div className="flex min-w-max items-center md:min-w-0">
+        {MAIN_PATH.map((step, i) => {
+          const isDone = i < currentIndex;
+          const isCurrent = i === currentIndex;
+          const isFuture = i > currentIndex;
 
-        return (
-          <div key={step} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-2 shrink-0">
-              <div className="relative flex h-8 w-8 items-center justify-center">
-                {isCurrent && (
-                  <motion.span
-                    className="absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,#22d3ee,#8b5cf6,#22d3ee)]"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  />
-                )}
-                <div
+          return (
+            <div key={step} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center gap-2 shrink-0">
+                <div className="relative flex h-8 w-8 items-center justify-center">
+                  {isCurrent && (
+                    <motion.span
+                      className="absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,#22d3ee,#8b5cf6,#22d3ee)]"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                    />
+                  )}
+                  <div
+                    className={cn(
+                      "relative flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-semibold",
+                      isCurrent && "m-[2px] h-[calc(2rem-4px)] w-[calc(2rem-4px)] border-transparent bg-base text-primary",
+                      isDone && "border-success bg-success-bg text-success",
+                      isFuture && "border-hairline bg-surface text-tertiary",
+                    )}
+                  >
+                    {isDone ? <Check className="h-4 w-4" strokeWidth={3} /> : i + 1}
+                  </div>
+                </div>
+                <span
                   className={cn(
-                    "relative flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-semibold",
-                    isCurrent && "m-[2px] h-[calc(2rem-4px)] w-[calc(2rem-4px)] border-transparent bg-base text-primary",
-                    isDone && "border-success bg-success-bg text-success",
-                    isFuture && "border-hairline bg-surface text-tertiary",
+                    "text-[11px] font-medium whitespace-nowrap",
+                    isCurrent && "text-primary",
+                    isDone && "text-secondary",
+                    isFuture && "text-tertiary",
                   )}
                 >
-                  {isDone ? <Check className="h-4 w-4" strokeWidth={3} /> : i + 1}
-                </div>
+                  {LIFECYCLE_LABEL[step]}
+                </span>
               </div>
-              <span
-                className={cn(
-                  "text-[11px] font-medium whitespace-nowrap",
-                  isCurrent && "text-primary",
-                  isDone && "text-secondary",
-                  isFuture && "text-tertiary",
-                )}
-              >
-                {LIFECYCLE_LABEL[step]}
-              </span>
+              {i < MAIN_PATH.length - 1 && (
+                <div className={cn("h-0.5 flex-1 mx-1 rounded-full mb-5", isDone ? "bg-success" : "bg-hairline")} />
+              )}
             </div>
-            {i < MAIN_PATH.length - 1 && (
-              <div className={cn("h-0.5 flex-1 mx-1 rounded-full mb-5", isDone ? "bg-success" : "bg-hairline")} />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

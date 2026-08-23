@@ -2,17 +2,27 @@
 
 import { useTheme } from "next-themes";
 import { useAuth } from "react-oidc-context";
-import { Moon, Sun, LogOut } from "lucide-react";
+import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import type { Me } from "@/types/api";
 import { Button } from "@/components/ui/Button";
 
-export function Topbar({ me }: { me: Me | undefined }) {
+export function Topbar({ me, onOpenNav }: { me: Me | undefined; onOpenNav: () => void }) {
   const { theme, setTheme } = useTheme();
   const auth = useAuth();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-surface px-6">
-      <div className="text-sm text-tertiary font-mono">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</div>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-surface px-4 sm:px-6">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenNav}
+          aria-label="Open navigation"
+          className="-ml-1 rounded-lg p-2 text-secondary transition-colors hover:bg-raised hover:text-primary md:hidden"
+        >
+          <Menu className="h-4.5 w-4.5" />
+        </button>
+        <div className="text-sm text-tertiary font-mono">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</div>
+      </div>
 
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
