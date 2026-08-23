@@ -26,6 +26,7 @@ dependencies = [
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
     "ruff>=0.7",
 ]
 
@@ -46,3 +47,18 @@ asyncio_mode = "auto"
 # every reused connection fails with "attached to a different loop".
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.run]
+source = ["app"]
+# SQLAlchemy's asyncio layer runs queries inside greenlets, and coverage's
+# default tracer loses the frame across that switch — so every endpoint body
+# after its first `await db.…` was reported as unexecuted even when a test
+# provably ran it (an endpoint returning 201 showed as 0% covered). Without
+# this the numbers understate reality by roughly 25 points.
+concurrency = ["greenlet"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
