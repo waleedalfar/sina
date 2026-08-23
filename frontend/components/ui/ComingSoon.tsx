@@ -10,7 +10,7 @@ export function ComingSoon({ icon: Icon, title, phase, description }: { icon: Lu
       <h2 className="text-base font-semibold text-primary">{title}</h2>
       <p className="max-w-md text-sm text-secondary">{description}</p>
       <span className="mt-1 rounded-full border border-hairline bg-surface px-3 py-1 text-xs font-medium text-tertiary font-mono">
-        {phase} · docs/modules/frontend.md
+        {phase}
       </span>
     </Card>
   );

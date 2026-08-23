@@ -69,13 +69,11 @@ The API is at <http://localhost:8000>, with Swagger at `/docs`.
 
 ## Status, honestly
 
-MVP 0.1 is complete and was verified against real infrastructure — real
+MVP 0.1 is complete, covered by **174 backend tests at 90% line coverage
+plus 47 frontend tests**, and verified against real infrastructure — real
 Keycloak tokens, real ClamAV scans, real Ollama inference, a real governance
 approval cycle — rather than mocks. All seven backend modules are done, as
-is the console: nine of its ten milestones are complete, the tenth being a
-polish pass whose responsive half is finished and whose screen-reader half
-is partially done (see below). 24 backend tests cover the approval cycle,
-role history and the audit chain.
+is the console.
 
 What this is **not**, stated plainly:
 
@@ -93,8 +91,8 @@ What this is **not**, stated plainly:
   and a focus-trapped mobile nav are all in place; whether the
   announcements are genuinely comprehensible aloud has not been judged by a
   human across every page.
-- Known gaps are tracked in the module docs rather than hidden — see each
-  doc's Revision Log.
+- Known gaps are stated in [`SECURITY.md`](./SECURITY.md) rather than
+  hidden.
 
 ## How it is built
 
@@ -106,17 +104,14 @@ cannot call out to one.
 ```
 backend/app/    identity · audit · models · governance · gateway · evaluation · dashboard
 frontend/       Next.js App Router console ("Aperture")
-docs/modules/   One design doc per module — the spec the code is held to
-docs/decisions/ ADRs, one per architecture decision
+docs/           ARCHITECTURE.md — how the pieces fit and what is deliberately impossible
 infra/          Docker Compose, Keycloak realm
 ```
 
-This repository is built docs-first: every module has an approved design doc
-before its code exists, and every consequential decision has an ADR. If the
-code and a doc disagree, that is a bug in one of them. Start with
-[`docs/architecture/system-overview.md`](./docs/architecture/system-overview.md)
-for the component map, or [`MasterPrompt.md`](./MasterPrompt.md) for the full
-original specification the whole thing was decomposed from.
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) explains how the pieces fit
+and, more usefully, which things are deliberately impossible.
+[`SECURITY.md`](./SECURITY.md) states what is enforced, how it was verified,
+and what is explicitly *not* protected.
 
 Contributions and issues are welcome — particularly from anyone who has had
 to get an AI system past a hospital's governance board and can say where

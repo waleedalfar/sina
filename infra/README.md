@@ -19,7 +19,7 @@ docker compose exec backend python -m app.seed
 `keycloak/realm-export.json` seeds five synthetic test users (`platform-admin`,
 `ml-engineer-1`, `app-developer-1`, `clinical-safety-1`, `auditor-1`, all
 password `devpassword123`) and a confidential client secret
-(`service-dev-secret`). Per `DEVELOPMENT_RULES.md`'s synthetic-data rule,
+(`service-dev-secret`). Per this project's synthetic-data rule,
 these have zero relation to any real identity and zero value outside a local
 Docker network — they're checked into version control deliberately, the same
 way `identity.md` documented seeding test identities as a scripted, versioned
