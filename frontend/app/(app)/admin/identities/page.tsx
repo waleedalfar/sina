@@ -122,7 +122,12 @@ function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Ro
           <select
             value={selectedRoleId}
             onChange={(e) => setSelectedRoleId(e.target.value)}
-            className="flex-1 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-xs text-primary outline-none focus:border-cyan"
+            // `min-w-0` is load-bearing: a flex item defaults to
+            // `min-width: auto`, so without it this select refuses to
+            // shrink below the intrinsic width of its longest option
+            // ("… — conflicts with held signoff role") and pushes the
+            // Grant button off-screen on a phone.
+            className="min-w-0 flex-1 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-xs text-primary outline-none focus:border-cyan"
           >
             <option value="">Grant a role…</option>
             {availableRoles.map((role) => {
@@ -138,6 +143,7 @@ function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Ro
           <Button
             variant="secondary"
             size="sm"
+            className="shrink-0"
             disabled={!selectedRoleId || grant.isPending}
             onClick={() => grant.mutate(selectedRoleId, { onSuccess: () => setSelectedRoleId("") })}
           >
