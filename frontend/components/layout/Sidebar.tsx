@@ -13,6 +13,7 @@ import {
   Users,
   Settings,
   Aperture,
+  Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Role } from "@/types/api";
@@ -30,6 +31,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/models", label: "Models", icon: Boxes },
   { href: "/applications", label: "Applications", icon: ClipboardCheck },
   { href: "/evaluations", label: "Evaluations", icon: FlaskConical },
+  // Sits with the build-and-operate group rather than the oversight group
+  // below: it's where you exercise an Application, not where you review one.
+  { href: "/playground", label: "Playground", icon: Terminal },
   {
     href: "/audit",
     label: "Audit",

@@ -24,11 +24,16 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   isFormData?: boolean;
+  /** Extra request headers. Needed by the gateway, which identifies the
+   * calling Application with `X-Application-Id` rather than a path param —
+   * it's an OpenAI-compatible endpoint, so the path shape isn't ours to
+   * change. */
+  headers?: Record<string, string>;
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = tokenGetter();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...options.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let body: BodyInit | undefined;

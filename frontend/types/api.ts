@@ -268,3 +268,22 @@ export interface ApprovalQueueItem {
   resource_name: string;
   category: ApprovalCategory;
 }
+
+/** Gateway responses are OpenAI-shaped — see lib/api/gateway.ts for why
+ * this mirrors their schema rather than a friendlier local one. */
+export interface ChatCompletionResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: {
+    index: number;
+    message: { role: string; content: string };
+    finish_reason: string;
+  }[];
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
