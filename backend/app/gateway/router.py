@@ -10,7 +10,7 @@ from app.audit.service import emit as audit_emit
 from app.core.config import settings
 from app.core.db import get_db
 from app.evaluation.models import EvaluationRun
-from app.gateway.prompt_security import flag_suspicious
+from app.gateway.prompt_security import detect_suspicious
 from app.gateway.rate_limit import check_and_increment
 from app.gateway.schemas import (
     ChatCompletionChoice,
@@ -158,7 +158,24 @@ async def chat_completions(
     if len(prompt_text) > settings.gateway_max_prompt_chars:
         raise HTTPException(status_code=413, detail="prompt exceeds maximum length")
 
-    prompt_injection_flagged = any(flag_suspicious(m.content) for m in body.messages)
+    # --- Checklist step 8: prompt injection — blocked, not just logged ---
+    # Amended 2026-08-23: gateway.md originally left this as log-only,
+    # explicitly handed off to `evaluation`'s design doc to pick up once
+    # that module existed. It now does; this closes the handoff. The
+    # filter itself is unchanged (still the same small, bypassable
+    # keyword list) — blocking is a deliberate decision to accept the
+    # known false-positive risk on legitimate clinical language, not a
+    # claim that detection quality improved. See gateway.md.
+    matched_pattern: str | None = None
+    for m in body.messages:
+        matched_pattern = detect_suspicious(m.content)
+        if matched_pattern is not None:
+            break
+    if matched_pattern is not None:
+        await _deny(
+            db, current, x_application_id, "prompt_injection",
+            f"prompt matched a known injection pattern: {matched_pattern!r}",
+        )
 
     model_name = ollama_model_name(application.model_version_id)
     try:
@@ -202,7 +219,10 @@ async def chat_completions(
             "response_hash": hashlib.sha256(response_content.encode()).hexdigest(),
             "human_review_required": application.human_review_required,
             "evaluation_version": str(evaluation_version) if evaluation_version else None,
-            "prompt_injection_flagged": prompt_injection_flagged,
+            # Always False here by construction — a flagged request is
+            # blocked (and audited separately as gateway.request_denied)
+            # above, before this point is ever reached.
+            "prompt_injection_flagged": False,
         },
     )
     await db.commit()

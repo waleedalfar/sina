@@ -252,15 +252,27 @@ async def dashboard_security_events(
         for e in inference_events
         if e.payload.get("phi_accessed") is True
     ][:limit]
-    suspicious_prompts = [
-        {
-            "sequence_number": e.sequence_number,
-            "occurred_at": e.occurred_at.isoformat(),
-            "payload": e.payload,
-        }
-        for e in inference_events
-        if e.payload.get("prompt_injection_flagged") is True
-    ][:limit]
+    # Two sources, deliberately. Since 2026-08-23 a matched prompt is
+    # *blocked* (gateway.md checklist step 8), so it never produces a
+    # gateway.inference_request at all — it lands as a request_denied with
+    # denied_check="prompt_injection". Historical events from before that
+    # change are real security signal and still carry the old flag on the
+    # inference event, so both are read and merged rather than dropping
+    # the pre-change history off this column. See dashboard-api.md.
+    suspicious_prompts = sorted(
+        [
+            {
+                "sequence_number": e.sequence_number,
+                "occurred_at": e.occurred_at.isoformat(),
+                "payload": e.payload,
+            }
+            for e in inference_events
+            if e.payload.get("prompt_injection_flagged") is True
+        ]
+        + [e for e in policy_violations_denied if e["payload"].get("denied_check") == "prompt_injection"],
+        key=lambda e: e["sequence_number"],
+        reverse=True,
+    )[:limit]
 
     return SecurityEventsOut(
         policy_violations=(policy_violations_denied + policy_violations_rejected)[:limit],

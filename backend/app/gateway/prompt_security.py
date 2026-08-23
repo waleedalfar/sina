@@ -1,8 +1,12 @@
 """
-Logged, not blocked — see gateway.md's Design decision. A naive filter is
-weak security and risks false-positive-blocking legitimate clinical
-language; this flags requests for the audit trail (feeding `evaluation`
-once it exists) rather than gambling availability on an unreliable filter.
+Blocked, not just logged — see gateway.md's Design decision (amended
+2026-08-23, closing the handoff to `evaluation` that doc's original
+Revision Log left open). The underlying filter is still the same small,
+bypassable keyword list it always was — `evaluation`'s prompt_injection
+category exists now to validate detection quality over time, but nothing
+here got smarter. Blocking on it is a deliberate product decision to
+accept the known false-positive risk on legitimate clinical language,
+not a claim that the risk went away.
 """
 
 _SUSPICIOUS_PATTERNS = (
@@ -18,5 +22,14 @@ _SUSPICIOUS_PATTERNS = (
 
 
 def flag_suspicious(text: str) -> bool:
+    return detect_suspicious(text) is not None
+
+
+def detect_suspicious(text: str) -> str | None:
+    """Returns the matched pattern (real audit detail — which phrase
+    triggered it), or None if nothing matched."""
     lowered = text.lower()
-    return any(pattern in lowered for pattern in _SUSPICIOUS_PATTERNS)
+    for pattern in _SUSPICIOUS_PATTERNS:
+        if pattern in lowered:
+            return pattern
+    return None
