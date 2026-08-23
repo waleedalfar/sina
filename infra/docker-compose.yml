@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hospital_platform
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -36,7 +34,12 @@ services:
       # reached Keycloak. See identity.md's Revision Log.
       KC_HOSTNAME: http://localhost:8080
     ports:
-      - "8080:8080"
+      # Published because the browser performs the OIDC redirect against
+      # it directly. The datastores are deliberately NOT published — the
+      # backend reaches them over the compose network, and exposing them
+      # to the host meant a Postgres and an unauthenticated Redis on the
+      # network with credentials this repository documents publicly.
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     healthcheck:
@@ -54,8 +57,6 @@ services:
     # Desktop on Apple Silicon. Dev-only concession; unrelated to any
     # design decision in models.md.
     platform: linux/amd64
-    ports:
-      - "3310:3310"
     healthcheck:
       # clamd can take a couple of minutes on first boot while freshclam
       # pulls virus definitions — generous start_period/retries for that.
@@ -71,8 +72,6 @@ services:
   # orchestration (explicitly Phase 2+).
   ollama:
     image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
     volumes:
       - model_files:/models
     healthcheck:
@@ -85,8 +84,6 @@ services:
   # other module uses Redis (see that ADR's MVP vs Future).
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

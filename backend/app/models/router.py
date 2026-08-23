@@ -331,11 +331,23 @@ async def start_model_version(
 
     # Fail-closed re-verification, every start — see models.md.
     path = _gguf_path(version_id)
-    actual_hash = await _compute_sha256(path)
-    if actual_hash != version.file_hash:
+    try:
+        actual_hash = await _compute_sha256(path)
+    except FileNotFoundError:
+        # The artifact was removed after import. Treated exactly like a
+        # hash mismatch rather than allowed to surface as an unhandled 500:
+        # both mean "the bytes that were approved are not the bytes here",
+        # and an operator needs to be told which model is unusable, not
+        # handed an opaque server error.
+        actual_hash = None
+    if actual_hash is None or actual_hash != version.file_hash:
         state.last_hash_reverify_result = "fail"
         state.runtime_status = RuntimeStatus.error.value
-        state.process_error = "hash mismatch at start-time re-verification"
+        state.process_error = (
+            "artifact file missing at start-time re-verification"
+            if actual_hash is None
+            else "hash mismatch at start-time re-verification"
+        )
         await audit_emit(
             db,
             tenant_id=version.tenant_id,
@@ -347,6 +359,11 @@ async def start_model_version(
             severity=Severity.security_critical,
         )
         await db.commit()
+        if actual_hash is None:
+            raise Conflict(
+                f"artifact file for model version {version_id} is missing — "
+                "refusing to start (fail-closed)"
+            )
         raise Conflict(f"hash mismatch for model version {version_id} — refusing to start (fail-closed)")
 
     state.last_hash_reverify_result = "pass"

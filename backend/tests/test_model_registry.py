@@ -375,3 +375,15 @@ async def test_starting_requires_a_privileged_role(
         await as_role(role)
         r = await client.post(f"/api/v1/model-versions/{model_version.id}/start", json={})
         assert r.status_code == 403, f"{role} could start a model"
+
+
+async def test_start_refuses_cleanly_when_the_artifact_file_is_gone(
+    client, as_role, model_version, stub_ollama_runtime
+):
+    """The artifact was deleted after import. Previously this surfaced as an
+    unhandled FileNotFoundError and a 500; an operator needs to be told
+    which model is unusable, not handed an opaque server error."""
+    await as_role("ML Engineer")
+    r = await client.post(f"/api/v1/model-versions/{model_version.id}/start", json={})
+    assert r.status_code == 409, r.text
+    assert "missing" in r.text.lower()
