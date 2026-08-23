@@ -22,6 +22,22 @@ export const LIFECYCLE_LABEL: Record<LifecycleState, string> = {
   retired: "Retired",
 };
 
+// The lifecycle in its real progression order (governance.md's state
+// machine), with the two off-path terminal-ish states last. Used wherever
+// states are listed for the user rather than displayed one at a time —
+// object key order is not something to depend on for that.
+export const LIFECYCLE_ORDER: LifecycleState[] = [
+  "draft",
+  "development",
+  "evaluation",
+  "governance_review",
+  "approved",
+  "staging",
+  "production",
+  "suspended",
+  "retired",
+];
+
 export function lifecycleTone(state: LifecycleState): Tone {
   switch (state) {
     case "production":
