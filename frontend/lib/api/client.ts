@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/auth/config";
+import { notifySessionExpired } from "@/lib/auth/session";
 
 export class ApiError extends Error {
   status: number;
@@ -47,6 +48,14 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   });
 
   if (!res.ok) {
+    // A 401 means the token the backend saw is missing, expired, or no
+    // longer valid — the session is over, and every other in-flight query
+    // is about to fail the same way. Signal it once, centrally, instead of
+    // letting each call site render its own red box (see lib/auth/session).
+    // 403 is deliberately excluded: that's a policy answer, not a
+    // session problem.
+    if (res.status === 401) notifySessionExpired();
+
     let detail = res.statusText;
     try {
       const data = await res.json();

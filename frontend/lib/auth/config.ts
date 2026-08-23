@@ -1,4 +1,5 @@
 import type { AuthProviderProps } from "react-oidc-context";
+import { takeReturnPath } from "@/lib/auth/session";
 
 /**
  * Browser-native OIDC (Authorization Code + PKCE) directly against
@@ -13,7 +14,11 @@ export const oidcConfig: AuthProviderProps = {
   scope: "openid profile email",
   automaticSilentRenew: true,
   onSigninCallback: () => {
-    window.history.replaceState({}, document.title, "/dashboard");
+    // Lands back on whatever page the user was on when the session
+    // expired, not always the dashboard — see lib/auth/session. A plain
+    // first sign-in has nothing remembered and falls through to
+    // /dashboard as before.
+    window.history.replaceState({}, document.title, takeReturnPath());
   },
 };
 
