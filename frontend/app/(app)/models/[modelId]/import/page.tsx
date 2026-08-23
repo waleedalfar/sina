@@ -83,7 +83,7 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
       <div>
         <h1 className="text-lg font-semibold text-primary">Import Version — {model.name}</h1>
         <p className="text-sm text-secondary mt-0.5">
-          Every artifact is hashed (SHA-256) and scanned for malware before it's registered — a positive scan
+          Every artifact is hashed (SHA-256) and scanned for malware before it&apos;s registered — a positive scan
           blocks the import outright, no override.
         </p>
       </div>

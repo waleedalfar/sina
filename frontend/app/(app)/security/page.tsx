@@ -48,7 +48,7 @@ export default function SecurityPage() {
       <div>
         <h1 className="text-lg font-semibold text-primary">Security</h1>
         <p className="text-sm text-secondary mt-0.5">
-          §26's five-column security view, sourced entirely from the audit event stream — no separate SIEM in
+          §26&apos;s five-column security view, sourced entirely from the audit event stream — no separate SIEM in
           MVP 0.1.
         </p>
       </div>

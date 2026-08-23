@@ -46,7 +46,7 @@ export default function AuditIntegrityPage() {
         </Link>
         <h1 className="text-lg font-semibold text-primary">Hash Chain Integrity</h1>
         <p className="text-sm text-secondary mt-0.5">
-          Walks the full audit event chain and recomputes each event's hash — the same SQL function the insert
+          Walks the full audit event chain and recomputes each event&apos;s hash — the same SQL function the insert
           trigger uses, called here rather than reimplemented, so this check can never drift from what actually
           protects the data.
         </p>
