@@ -14,9 +14,11 @@ import {
   Clock3,
   Boxes,
   FlaskConical,
+  Pencil,
 } from "lucide-react";
 import {
   useModel,
+  useUpdateModel,
   useModelDashboardRows,
   useModelVersionDetail,
   useModelVersionRuntimeState,
@@ -30,6 +32,7 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ResourceState } from "@/components/ui/ResourceState";
+import { Modal } from "@/components/ui/Modal";
 import {
   decisionTone,
   riskTone,
@@ -64,6 +67,8 @@ function formatBytes(n: number): string {
 export default function ModelDetailPage({ params }: { params: Promise<{ modelId: string }> }) {
   const { modelId } = use(params);
   const { data: model, isLoading: modelLoading, error, refetch } = useModel(modelId);
+  const updateModel = useUpdateModel(modelId);
+  const [editOpen, setEditOpen] = useState(false);
   const { data: rows, isLoading: rowsLoading } = useModelDashboardRows(modelId);
   const { data: me } = useMe();
   const canImport = me && hasAnyRole(me.roles, IMPORT_MODEL_VERSION_ROLES);
@@ -97,14 +102,42 @@ export default function ModelDetailPage({ params }: { params: Promise<{ modelId:
           <h1 className="text-lg font-semibold text-primary">{model.name}</h1>
           <p className="text-sm text-secondary mt-1">{model.description ?? "No description recorded."}</p>
         </div>
-        {canImport && (
-          <Link href={`/models/${modelId}/import`}>
-            <Button variant="primary" size="sm">
-              <Plus className="h-3.5 w-3.5" /> Import Version
+        <div className="flex items-center gap-2">
+          {/* Same role as importing a version and as creating the Model:
+              whoever can register a Model owns its metadata. Mirrored
+              client-side to hide the action, not to enforce it — the
+              backend requires ML Engineer independently. */}
+          {canImport && (
+            <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Edit
             </Button>
-          </Link>
-        )}
+          )}
+          {canImport && (
+            <Link href={`/models/${modelId}/import`}>
+              <Button variant="primary" size="sm">
+                <Plus className="h-3.5 w-3.5" /> Import Version
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit model">
+        <ModelEditForm
+          name={model.name}
+          description={model.description}
+          pending={updateModel.isPending}
+          error={
+            updateModel.error instanceof ApiError
+              ? updateModel.error.detail
+              : updateModel.error instanceof Error
+                ? updateModel.error.message
+                : null
+          }
+          onCancel={() => setEditOpen(false)}
+          onSubmit={(body) => updateModel.mutate(body, { onSuccess: () => setEditOpen(false) })}
+        />
+      </Modal>
 
       {rows && rows.length === 0 && (
         <Card className="flex flex-col items-center gap-2 py-16 text-center">
@@ -118,6 +151,75 @@ export default function ModelDetailPage({ params }: { params: Promise<{ modelId:
           <VersionCard modelId={modelId} row={row} />
         </motion.div>
       ))}
+    </div>
+  );
+}
+
+function ModelEditForm({
+  name: initialName,
+  description: initialDescription,
+  pending,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  name: string;
+  description: string | null;
+  pending: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: (body: { name?: string; description?: string | null }) => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription ?? "");
+
+  const changed =
+    name !== initialName || description !== (initialDescription ?? "");
+
+  const build = () => {
+    const body: { name?: string; description?: string | null } = {};
+    if (name !== initialName) body.name = name;
+    if (description !== (initialDescription ?? "")) body.description = description || null;
+    return body;
+  };
+
+  return (
+    <div>
+      {error && (
+        <div className="mb-3 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger">{error}</div>
+      )}
+      <div className="space-y-4">
+        <div>
+          <label className="text-xs text-tertiary">Name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-tertiary">Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan"
+          />
+        </div>
+        <p className="border-t border-hairline pt-3 text-[11px] text-tertiary">
+          Renaming is recorded in the audit trail. This name is what appears next to every governance approval
+          already recorded against this model&apos;s versions, so the previous value has to stay recoverable.
+          Imported versions themselves can&apos;t be edited at all.
+        </p>
+      </div>
+      <div className="mt-4 flex justify-end gap-2 border-t border-hairline pt-4">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" disabled={pending || !changed || name.trim().length === 0} onClick={() => onSubmit(build())}>
+          {pending ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,17 @@ class ModelIn(BaseModel):
     description: str | None = None
 
 
+class ModelUpdateIn(BaseModel):
+    """Both fields optional — a PATCH applies only what's set. There is no
+    version-level analogue on purpose: a `ModelVersion` is an immutable
+    record of an imported artifact (hash, scan result, imported_by), and
+    `risk_classification`, the one mutable thing about it, is owned by
+    `governance`'s own endpoint."""
+
+    name: str | None = None
+    description: str | None = None
+
+
 class ModelOut(BaseModel):
     id: uuid.UUID
     name: str

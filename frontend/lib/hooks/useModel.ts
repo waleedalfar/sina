@@ -11,6 +11,20 @@ export function useModel(modelId: string) {
   return useQuery({ queryKey: ["model", modelId], queryFn: () => modelsApi.get(modelId) });
 }
 
+export function useUpdateModel(modelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Parameters<typeof modelsApi.update>[1]) => modelsApi.update(modelId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["model", modelId] });
+      // The name shown on the /models list and on every Application card
+      // comes from the dashboard rows, not from this query.
+      qc.invalidateQueries({ queryKey: ["dashboard-models"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-applications"] });
+    },
+  });
+}
+
 type ImportOpts = Parameters<typeof modelsApi.importVersion>[2];
 
 export function useImportModelVersion(modelId: string) {

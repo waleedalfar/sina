@@ -24,7 +24,13 @@ from app.models.models import (
     ollama_model_name,
 )
 from app.models.ollama_client import OllamaClient, OllamaError
-from app.models.schemas import ModelIn, ModelOut, ModelRuntimeStateOut, ModelVersionOut
+from app.models.schemas import (
+    ModelIn,
+    ModelOut,
+    ModelRuntimeStateOut,
+    ModelUpdateIn,
+    ModelVersionOut,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["models"])
 
@@ -130,6 +136,59 @@ async def get_model(
     model = await db.get(Model, model_id)
     if model is None:
         raise NotFound(f"model {model_id} not found")
+    return model
+
+
+@router.patch("/models/{model_id}", response_model=ModelOut)
+async def update_model(
+    model_id: uuid.UUID,
+    body: ModelUpdateIn,
+    db: AsyncSession = Depends(get_db),
+    current: ResolvedIdentity = Depends(require_role("ML Engineer")),
+):
+    """
+    Rename / re-describe a `Model`. Same role as creating one — whoever
+    can register a Model owns its metadata.
+
+    Audited, unlike `create_model`, and deliberately so: a `Model`'s name
+    is the label an auditor sees next to every historical governance
+    approval recorded against its versions. Renaming one silently rewrites
+    what a past decision *appears* to have been about, so the old value has
+    to survive somewhere. `model.updated` is that somewhere. Creation has
+    no prior value to lose, which is why it stays unaudited.
+
+    Only `Model`-level metadata is editable. A `ModelVersion` is an
+    immutable record of an imported artifact — see `ModelUpdateIn`.
+    """
+    model = await db.get(Model, model_id)
+    if model is None:
+        raise NotFound(f"model {model_id} not found")
+
+    updates = body.model_dump(exclude_unset=True)
+    changed: dict[str, dict[str, str | None]] = {}
+    for field, value in updates.items():
+        previous = getattr(model, field)
+        if previous == value:
+            continue
+        changed[field] = {"from": previous, "to": value}
+        setattr(model, field, value)
+
+    # Nothing actually differs — don't write a no-op row into an
+    # append-only audit log that can never be cleaned up.
+    if not changed:
+        return model
+
+    await audit_emit(
+        db,
+        tenant_id=model.tenant_id,
+        event_type="model.updated",
+        actor_identity_id=current.identity.id,
+        resource_type="model",
+        resource_id=model_id,
+        payload={"updated_by": str(current.identity.id), "changes": changed},
+        severity=Severity.info,
+    )
+    await db.commit()
     return model
 
 

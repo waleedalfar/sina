@@ -6,6 +6,12 @@ export const modelsApi = {
   get: (id: string) => apiFetch<Model>(`/api/v1/models/${id}`),
   create: (name: string, description?: string) =>
     apiFetch<Model>("/api/v1/models", { method: "POST", body: { name, description } }),
+  // Model-level metadata only. There is deliberately no version-level
+  // equivalent: a ModelVersion records an imported artifact (hash, scan
+  // result, importer) and is immutable, and its one mutable field,
+  // risk_classification, is owned by governance's own endpoint.
+  update: (id: string, body: { name?: string; description?: string | null }) =>
+    apiFetch<Model>(`/api/v1/models/${id}`, { method: "PATCH", body }),
   getVersion: (modelId: string, versionId: string) =>
     apiFetch<ModelVersion>(`/api/v1/models/${modelId}/versions/${versionId}`),
   importVersion: (
