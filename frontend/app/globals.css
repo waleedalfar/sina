@@ -162,3 +162,40 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Skip link (WCAG 2.4.1 Bypass Blocks, Level A).
+   Written here rather than with Tailwind's `focus:not-sr-only`, which this
+   build never generates a rule for — the utility silently does nothing, so
+   the link stayed a 1x1 clipped box even when focused. Every property
+   `sr-only` sets is undone explicitly on focus. */
+.skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link:focus {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 100;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+  border: 1px solid var(--color-border-hairline);
+  border-radius: 0.5rem;
+  background: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-raised);
+}
