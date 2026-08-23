@@ -21,6 +21,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ResourceState } from "@/components/ui/ResourceState";
 import { Modal } from "@/components/ui/Modal";
 import { decisionTone, riskTone, DECISION_LABEL } from "@/lib/status";
 import {
@@ -82,7 +83,7 @@ function computeSuggestedClassification(answers: RiskQuestionnaireIn): RiskClass
 
 export default function ApplicationDetailPage({ params }: { params: Promise<{ appId: string }> }) {
   const { appId } = use(params);
-  const { data: app, isLoading } = useApplication(appId);
+  const { data: app, isLoading, error, refetch } = useApplication(appId);
   const { data: me } = useMe();
   const { recordApproval, suspend, transition, submitQuestionnaire, update } = useApplicationMutations(appId);
   const { data: roles } = useRoles();
@@ -93,13 +94,25 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  if (isLoading || !app) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-24" />
         <Skeleton className="h-64" />
       </div>
+    );
+  }
+
+  if (!app) {
+    return (
+      <ResourceState
+        error={error}
+        resource="application"
+        backHref="/applications"
+        backLabel="Back to Applications"
+        onRetry={() => refetch()}
+      />
     );
   }
 

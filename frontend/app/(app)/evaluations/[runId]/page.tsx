@@ -7,6 +7,7 @@ import { useMe } from "@/lib/hooks/useMe";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ResourceState } from "@/components/ui/ResourceState";
 import { runStatusTone, RUN_STATUS_LABEL } from "@/lib/status";
 import { hasAnyRole, EVALUATION_TRIGGER_ROLES } from "@/lib/auth/roles";
 import type { EvaluationCaseResult } from "@/lib/api/evaluation";
@@ -27,20 +28,32 @@ const SCORING_METHOD_LABEL: Record<string, string> = {
 
 export default function EvaluationRunDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = use(params);
-  const { data: run, isLoading } = useEvaluationRun(runId);
+  const { data: run, isLoading, error, refetch } = useEvaluationRun(runId);
   const header = useEvaluationRunHeader(runId);
   const { data: me } = useMe();
   const submitReview = useSubmitHumanReview(runId);
 
   const canReview = me && hasAnyRole(me.roles, EVALUATION_TRIGGER_ROLES);
 
-  if (isLoading || !run) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-24" />
         <Skeleton className="h-64" />
       </div>
+    );
+  }
+
+  if (!run) {
+    return (
+      <ResourceState
+        error={error}
+        resource="evaluation run"
+        backHref="/evaluations"
+        backLabel="Back to Evaluations"
+        onRetry={() => refetch()}
+      />
     );
   }
 

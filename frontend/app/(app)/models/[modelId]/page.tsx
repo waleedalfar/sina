@@ -29,6 +29,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ResourceState } from "@/components/ui/ResourceState";
 import {
   decisionTone,
   riskTone,
@@ -62,18 +63,30 @@ function formatBytes(n: number): string {
 
 export default function ModelDetailPage({ params }: { params: Promise<{ modelId: string }> }) {
   const { modelId } = use(params);
-  const { data: model, isLoading: modelLoading } = useModel(modelId);
+  const { data: model, isLoading: modelLoading, error, refetch } = useModel(modelId);
   const { data: rows, isLoading: rowsLoading } = useModelDashboardRows(modelId);
   const { data: me } = useMe();
   const canImport = me && hasAnyRole(me.roles, IMPORT_MODEL_VERSION_ROLES);
 
-  if (modelLoading || rowsLoading || !model) {
+  if (modelLoading || rowsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40" />
         <Skeleton className="h-40" />
       </div>
+    );
+  }
+
+  if (!model) {
+    return (
+      <ResourceState
+        error={error}
+        resource="model"
+        backHref="/models"
+        backLabel="Back to Models"
+        onRetry={() => refetch()}
+      />
     );
   }
 
