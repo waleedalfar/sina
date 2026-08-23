@@ -14,6 +14,18 @@ export interface Role {
   kind: RoleKind;
 }
 
+/** One grant/revoke row from `GET /identities/{id}/roles`. `id` is still
+ * the role id (what the revoke endpoint takes); `assignment_id` is what
+ * makes two rows for the same role distinguishable, which the history
+ * view can legitimately contain. */
+export interface RoleAssignment extends Role {
+  assignment_id: string;
+  granted_by: string;
+  granted_at: string;
+  revoked_by: string | null;
+  revoked_at: string | null;
+}
+
 export interface Me {
   id: string;
   type: "human" | "service";

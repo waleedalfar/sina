@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, Plus, X, Users } from "lucide-react";
-import { useIdentities, useRoles, useIdentityRoleMutations } from "@/lib/hooks/useIdentity";
+import { Lock, Plus, X, Users, History, ChevronDown } from "lucide-react";
+import { useIdentities, useRoles, useIdentityRoleMutations, useIdentityRoleHistory } from "@/lib/hooks/useIdentity";
 import { useMe } from "@/lib/hooks/useMe";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
@@ -71,6 +71,8 @@ export default function IdentitiesPage() {
 function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Role[] }) {
   const { grant, revoke } = useIdentityRoleMutations(identity.id);
   const [selectedRoleId, setSelectedRoleId] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: history, isLoading: historyLoading } = useIdentityRoleHistory(identity.id, historyOpen);
 
   const heldRoleIds = new Set(identity.roles.map((r) => r.id));
   const heldKinds = identity.roles.map((r) => r.kind);
@@ -141,6 +143,48 @@ function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Ro
           >
             <Plus className="h-3.5 w-3.5" /> Grant
           </Button>
+        </div>
+
+        {/* Revoked assignments were always kept in the database (a revoke
+            sets revoked_at, it never deletes the row) but nothing read
+            them back, so "who held what, when" was only recoverable from
+            the audit log. Collapsed by default and only fetched when
+            opened — this is reference material, not the primary view. */}
+        <div className="border-t border-hairline pt-3">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-expanded={historyOpen}
+            className="flex items-center gap-1.5 text-xs text-tertiary transition-colors hover:text-secondary"
+          >
+            <History className="h-3.5 w-3.5" />
+            Role history
+            <ChevronDown className={`h-3 w-3 transition-transform ${historyOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {historyOpen && (
+            <div className="mt-3">
+              {historyLoading && <Skeleton className="h-16" />}
+              {history && history.length === 0 && (
+                <p className="text-xs text-tertiary">No role assignments recorded.</p>
+              )}
+              {history && history.length > 0 && (
+                <ul className="divide-y divide-[var(--color-border-hairline)]">
+                  {history.map((a) => (
+                    <li key={a.assignment_id} className="flex items-center justify-between gap-3 py-2">
+                      <span className={`text-xs ${a.revoked_at ? "text-tertiary line-through" : "text-primary"}`}>
+                        {a.name}
+                      </span>
+                      <span className="text-[11px] text-tertiary text-right">
+                        granted {new Date(a.granted_at).toLocaleString()}
+                        {a.revoked_at && ` · revoked ${new Date(a.revoked_at).toLocaleString()}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

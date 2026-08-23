@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,14 @@ from app.core.db import get_db
 from app.core.exceptions import Conflict, NotFound
 from app.identity.models import Identity, Role, RoleAssignment
 from app.identity.roles import find_conflicting_kind
-from app.identity.schemas import ActiveIn, GrantRoleIn, IdentityOut, MeOut, RoleOut
+from app.identity.schemas import (
+    ActiveIn,
+    GrantRoleIn,
+    IdentityOut,
+    MeOut,
+    RoleAssignmentOut,
+    RoleOut,
+)
 from app.identity.security import ResolvedIdentity, get_current_identity, require_role
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
@@ -84,14 +91,58 @@ async def list_identities(
     return out
 
 
-@router.get("/identities/{identity_id}/roles", response_model=list[RoleOut])
+@router.get("/identities/{identity_id}/roles", response_model=list[RoleAssignmentOut])
 async def list_identity_roles(
     identity_id: uuid.UUID,
+    include_revoked: bool = Query(
+        default=False,
+        description="Include revoked assignments — the full grant/revoke history, not just what is held now.",
+    ),
     db: AsyncSession = Depends(get_db),
     _: ResolvedIdentity = Depends(require_role("Platform Administrator")),
 ):
-    roles = await _load_roles(db, identity_id)
-    return [_to_role_out(r) for r in roles]
+    """
+    Currently-held roles by default; the full history with
+    `?include_revoked=true`.
+
+    The history was always in the table — `RoleAssignment` rows are
+    revoked, never deleted — but nothing read it back, so who held what
+    and when was only recoverable from the audit log. This endpoint
+    returns assignments rather than bare roles precisely because a history
+    can legitimately contain the same role more than once.
+
+    404s on an unknown identity rather than returning `[]`, matching the
+    grant/revoke/deactivate endpoints. An empty list here means "this
+    identity has never held a role", which is a different fact from "no
+    such identity" — and this endpoint is read for audit purposes, where
+    conflating the two is exactly the kind of thing that misleads.
+    """
+    if await db.get(Identity, identity_id) is None:
+        raise NotFound(f"identity {identity_id} not found")
+
+    stmt = (
+        select(Role, RoleAssignment)
+        .join(RoleAssignment, RoleAssignment.role_id == Role.id)
+        .where(RoleAssignment.identity_id == identity_id)
+        .order_by(RoleAssignment.granted_at.desc())
+    )
+    if not include_revoked:
+        stmt = stmt.where(RoleAssignment.revoked_at.is_(None))
+
+    result = await db.execute(stmt)
+    return [
+        RoleAssignmentOut(
+            id=role.id,
+            name=role.name,
+            kind=role.kind,
+            assignment_id=assignment.id,
+            granted_by=assignment.granted_by,
+            granted_at=assignment.granted_at,
+            revoked_by=assignment.revoked_by,
+            revoked_at=assignment.revoked_at,
+        )
+        for role, assignment in result.all()
+    ]
 
 
 @router.post("/identities/{identity_id}/roles", response_model=RoleOut, status_code=201)
