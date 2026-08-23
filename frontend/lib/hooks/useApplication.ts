@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { governanceApi, type RiskQuestionnaireIn } from "@/lib/api/governance";
+import { governanceApi, type ApplicationUpdateIn, type RiskQuestionnaireIn } from "@/lib/api/governance";
 import type { ApprovalCategory, ApprovalDecision } from "@/types/api";
 
 export function useApplication(id: string) {
@@ -38,5 +38,10 @@ export function useApplicationMutations(id: string) {
     onSuccess: invalidate,
   });
 
-  return { recordApproval, suspend, transition, submitQuestionnaire };
+  const update = useMutation({
+    mutationFn: (body: ApplicationUpdateIn) => governanceApi.updateApplication(id, body),
+    onSuccess: invalidate,
+  });
+
+  return { recordApproval, suspend, transition, submitQuestionnaire, update };
 }

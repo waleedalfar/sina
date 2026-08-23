@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useApplication, useApplicationMutations } from "@/lib/hooks/useApplication";
 import { useMe } from "@/lib/hooks/useMe";
+import { useRoles } from "@/lib/hooks/useIdentity";
 import { LifecycleStepper } from "@/components/lifecycle/LifecycleStepper";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
@@ -33,8 +34,8 @@ import {
   NON_TERMINAL_LIFECYCLE_STATES,
   RISK_QUESTIONNAIRE_ROLES,
 } from "@/lib/auth/roles";
-import type { ApprovalCategory, ApprovalDecision, LifecycleState, RiskClassification } from "@/types/api";
-import type { RiskQuestionnaireIn } from "@/lib/api/governance";
+import type { ApplicationDetail, ApprovalCategory, ApprovalDecision, LifecycleState, RiskClassification, Role } from "@/types/api";
+import type { ApplicationUpdateIn, RiskQuestionnaireIn } from "@/lib/api/governance";
 import { ApiError } from "@/lib/api/client";
 
 const APPROVAL_CATEGORIES: ApprovalCategory[] = ["clinical_safety", "privacy", "security", "ai_governance", "compliance"];
@@ -83,12 +84,14 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
   const { appId } = use(params);
   const { data: app, isLoading } = useApplication(appId);
   const { data: me } = useMe();
-  const { recordApproval, suspend, transition, submitQuestionnaire } = useApplicationMutations(appId);
+  const { recordApproval, suspend, transition, submitQuestionnaire, update } = useApplicationMutations(appId);
+  const { data: roles } = useRoles();
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [reason, setReason] = useState("");
   const [retireOpen, setRetireOpen] = useState(false);
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (isLoading || !app) {
     return (
@@ -110,6 +113,18 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
     hasAnyRole(me.roles, RETIRE_ROLES) &&
     (NON_TERMINAL_LIFECYCLE_STATES as readonly string[]).includes(app.lifecycle_state);
   const canEditQuestionnaire = me && hasAnyRole(me.roles, RISK_QUESTIONNAIRE_ROLES);
+
+  // Mirrors backend/app/governance/router.py's update_application guard
+  // exactly (creator-only, draft/development only), for the same reason the
+  // separation-of-duties matrix is mirrored on the Identity page: tell the
+  // user why an action is unavailable *before* they attempt it, rather than
+  // letting the server produce a bare 403/409 after the fact. The server
+  // remains the authority — this is an explanation, not the enforcement.
+  const isEditableState = app.lifecycle_state === "draft" || app.lifecycle_state === "development";
+  // Shown to the creator only (same as the manual forward-transition button
+  // above), disabled-with-a-reason rather than hidden once the window closes.
+  const canEdit = isCreator && isEditableState;
+  const editLockedReason = `Locked in ${app.lifecycle_state.replace("_", " ")} — an Application is only editable in Draft or Development. Past that, its purpose and data scope are what reviewers signed off against.`;
 
   // Manual forward transition, per backend/app/governance/policy.py's
   // MANUAL_TRANSITIONS graph — governance_review -> approved/development are
@@ -158,6 +173,17 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
           <p className="text-sm text-secondary mt-1">{app.purpose ?? "No purpose recorded."}</p>
         </div>
         <div className="flex items-center gap-2">
+          {isCreator && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!canEdit}
+              title={canEdit ? undefined : editLockedReason}
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Button>
+          )}
           {canManualNext && manualNext && (
             <Button variant="primary" size="sm" onClick={() => transition.mutate(manualNext.to)} disabled={transition.isPending}>
               {manualNext.label} <ArrowRight className="h-3.5 w-3.5" />
@@ -180,6 +206,13 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
           )}
         </div>
       </div>
+
+      {isCreator && !canEdit && (
+        // Visible, not just a `title` tooltip — same principle the admin
+        // Identities page uses for conflicting role grants: say why the
+        // action is off before it's attempted.
+        <p className="text-xs text-tertiary">{editLockedReason}</p>
+      )}
 
       {transitionErrorMessage && (
         <div className="rounded-lg border border-danger/30 bg-danger-bg px-4 py-2.5 text-xs text-danger">
@@ -243,6 +276,20 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
             <Detail label="Autonomous Action" value={app.autonomous_action_allowed ? "Allowed" : "Not allowed"} />
             <Detail label="External Network" value={app.external_network_allowed ? "Allowed" : "Not allowed"} />
             <Detail label="Permitted Data" value={app.permitted_data.join(", ") || "—"} />
+            <Detail label="Restricted Data" value={app.restricted_data.join(", ") || "—"} />
+            {/* The production access rule itself — gateway checklist step 3
+                denies any caller holding none of these roles. Worth showing
+                plainly next to the data scope, not just editable in a form. */}
+            <Detail
+              label="Permitted Users"
+              value={
+                app.permitted_role_ids.length === 0
+                  ? "None — no one can call this in Production"
+                  : app.permitted_role_ids
+                      .map((id) => roles?.find((r) => r.id === id)?.name ?? id)
+                      .join(", ")
+              }
+            />
             <Detail label="Created" value={new Date(app.created_at).toLocaleString()} />
           </CardContent>
         </Card>
@@ -375,6 +422,23 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
         </div>
       </Modal>
 
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit application">
+        <ApplicationEditForm
+          app={app}
+          roles={roles ?? []}
+          pending={update.isPending}
+          error={
+            update.error instanceof ApiError
+              ? update.error.detail
+              : update.error instanceof Error
+                ? update.error.message
+                : null
+          }
+          onCancel={() => setEditOpen(false)}
+          onSubmit={(body) => update.mutate(body, { onSuccess: () => setEditOpen(false) })}
+        />
+      </Modal>
+
       <Modal
         open={questionnaireOpen}
         onClose={() => setQuestionnaireOpen(false)}
@@ -438,6 +502,173 @@ function RiskQuestionnaireForm({
         <Button variant="primary" size="sm" disabled={pending} onClick={() => onSubmit(answers)}>
           Submit
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function ApplicationEditForm({
+  app,
+  roles,
+  pending,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  app: ApplicationDetail;
+  roles: Role[];
+  pending: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: (body: ApplicationUpdateIn) => void;
+}) {
+  const [name, setName] = useState(app.name);
+  const [purpose, setPurpose] = useState(app.purpose ?? "");
+  const [permittedData, setPermittedData] = useState(app.permitted_data.join(", "));
+  const [restrictedData, setRestrictedData] = useState(app.restricted_data.join(", "));
+  const [humanReview, setHumanReview] = useState(app.human_review_required);
+  const [autonomous, setAutonomous] = useState(app.autonomous_action_allowed);
+  const [externalNetwork, setExternalNetwork] = useState(app.external_network_allowed);
+  const [roleIds, setRoleIds] = useState<Set<string>>(new Set(app.permitted_role_ids));
+
+  const parseList = (s: string) => s.split(",").map((v) => v.trim()).filter(Boolean);
+
+  // Send only what actually changed. The backend PATCH uses
+  // `exclude_unset`, and for `permitted_role_ids` specifically it deletes
+  // and re-inserts every join row whenever the field is present — so
+  // sending an unchanged value would churn rows for no reason.
+  const buildBody = (): ApplicationUpdateIn => {
+    const body: ApplicationUpdateIn = {};
+    const permitted = parseList(permittedData);
+    const restricted = parseList(restrictedData);
+    const nextRoleIds = [...roleIds];
+    const sameList = (a: string[], b: string[]) =>
+      a.length === b.length && [...a].sort().join(" ") === [...b].sort().join(" ");
+
+    if (name !== app.name) body.name = name;
+    if (purpose !== (app.purpose ?? "")) body.purpose = purpose;
+    if (!sameList(permitted, app.permitted_data)) body.permitted_data = permitted;
+    if (!sameList(restricted, app.restricted_data)) body.restricted_data = restricted;
+    if (humanReview !== app.human_review_required) body.human_review_required = humanReview;
+    if (autonomous !== app.autonomous_action_allowed) body.autonomous_action_allowed = autonomous;
+    if (externalNetwork !== app.external_network_allowed) body.external_network_allowed = externalNetwork;
+    if (!sameList(nextRoleIds, app.permitted_role_ids)) body.permitted_role_ids = nextRoleIds;
+    return body;
+  };
+
+  const changedCount = Object.keys(buildBody()).length;
+
+  return (
+    <div>
+      {error && (
+        <div className="mb-3 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger">{error}</div>
+      )}
+
+      <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+        <EditField label="Name" value={name} onChange={setName} />
+
+        <div>
+          <label className="text-xs text-tertiary">Purpose</label>
+          <textarea
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan"
+          />
+        </div>
+
+        <EditField label="Permitted data" placeholder="comma-separated" value={permittedData} onChange={setPermittedData} />
+        <EditField label="Restricted data" placeholder="comma-separated" value={restrictedData} onChange={setRestrictedData} />
+
+        <div className="space-y-2.5 border-t border-hairline pt-3">
+          <EditBool label="Human review required" value={humanReview} onChange={setHumanReview} />
+          <EditBool label="Autonomous action allowed" value={autonomous} onChange={setAutonomous} />
+          <EditBool label="External network allowed" value={externalNetwork} onChange={setExternalNetwork} />
+        </div>
+
+        <div className="border-t border-hairline pt-3">
+          <label className="text-xs text-tertiary">Permitted users (roles allowed to use this in Production)</label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {roles.map((role) => {
+              const checked = roleIds.has(role.id);
+              return (
+                <button
+                  key={role.id}
+                  type="button"
+                  aria-pressed={checked}
+                  onClick={() =>
+                    setRoleIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(role.id)) next.delete(role.id);
+                      else next.add(role.id);
+                      return next;
+                    })
+                  }
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-150 ${
+                    checked ? "border-cyan/40 bg-cyan/15 text-cyan" : "border-hairline bg-raised text-tertiary hover:text-secondary"
+                  }`}
+                >
+                  {role.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <p className="text-[11px] text-tertiary border-t border-hairline pt-3">
+          The bound Model Version can&apos;t be changed here — rebinding would invalidate any governance approval
+          already recorded against it. Create a new Application instead.
+        </p>
+      </div>
+
+      <div className="mt-4 flex justify-end gap-2 border-t border-hairline pt-4">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={pending || changedCount === 0 || name.trim().length === 0}
+          onClick={() => onSubmit(buildBody())}
+        >
+          {pending ? "Saving…" : changedCount === 0 ? "No changes" : `Save ${changedCount} change${changedCount === 1 ? "" : "s"}`}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function EditField({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-tertiary">{label}</label>
+      <input
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan placeholder:text-tertiary"
+      />
+    </div>
+  );
+}
+
+function EditBool({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm text-primary">{label}</span>
+      <div className="flex items-center gap-1 rounded-lg border border-hairline bg-raised p-0.5 shrink-0">
+        <ToggleOption label="No" selected={!value} onClick={() => onChange(false)} />
+        <ToggleOption label="Yes" selected={value} onClick={() => onChange(true)} />
       </div>
     </div>
   );
