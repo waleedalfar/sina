@@ -1,5 +1,4 @@
 import type { AuthProviderProps } from "react-oidc-context";
-import { takeReturnPath } from "@/lib/auth/session";
 
 /**
  * Browser-native OIDC (Authorization Code + PKCE) directly against
@@ -14,11 +13,14 @@ export const oidcConfig: AuthProviderProps = {
   scope: "openid profile email",
   automaticSilentRenew: true,
   onSigninCallback: () => {
-    // Lands back on whatever page the user was on when the session
-    // expired, not always the dashboard — see lib/auth/session. A plain
-    // first sign-in has nothing remembered and falls through to
-    // /dashboard as before.
-    window.history.replaceState({}, document.title, takeReturnPath());
+    // Only strip `?code=`/`?state=` from the URL — deliberately NOT a
+    // navigation. `history.replaceState` rewrites the address bar without
+    // telling the Next App Router to render a different route, so using it
+    // to "go" to the destination left the app mounted on this callback
+    // route (a bare spinner) under a URL that claimed otherwise, until the
+    // user reloaded by hand. The actual move is done by the callback page,
+    // which has the router — see app/auth/callback/page.tsx.
+    window.history.replaceState({}, document.title, window.location.pathname);
   },
 };
 
