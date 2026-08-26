@@ -113,7 +113,12 @@ function Tube({
           }}
         />
       </div>
-      <div className={cn("text-center font-mono text-[10px] tracking-[0.1em] uppercase", style.text)}>
+      <div
+        className={cn(
+          "flex min-h-[26px] items-start justify-center text-center font-mono text-[10px] leading-[1.3] tracking-[0.1em] uppercase",
+          style.text,
+        )}
+      >
         {LIFECYCLE_LABEL[state]}
         <span className="sr-only">{` — step ${position} of ${total}, ${spoken}`}</span>
       </div>

@@ -300,7 +300,8 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
                   <p className="mt-0.5 font-mono text-[9.5px] tracking-[0.1em] text-warning uppercase">{requiredRole}</p>
                   {decision && (
                     <p className="mt-1 font-mono text-[10px] text-secondary">
-                      {decision.decided_by} · {new Date(decision.decided_at).toLocaleString()}
+                      <span title={decision.decided_by}>{decision.decided_by.slice(0, 8)}</span> ·{" "}
+                      {new Date(decision.decided_at).toLocaleString()}
                     </p>
                   )}
                 </div>
@@ -353,7 +354,8 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ ap
                       {a.category.replace(/_/g, " ")}
                     </span>
                     <p className="mt-0.5 font-mono text-[9.5px] text-secondary">
-                      {a.decided_by} · {new Date(a.decided_at).toLocaleString()}
+                      <span title={a.decided_by}>{a.decided_by.slice(0, 8)}</span> ·{" "}
+                      {new Date(a.decided_at).toLocaleString()}
                     </p>
                   </div>
                   <span className="font-mono text-[9px] tracking-[0.16em] text-secondary uppercase">
