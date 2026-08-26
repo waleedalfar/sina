@@ -52,9 +52,9 @@ docker compose exec backend python -m app.seed
 ```
 
 Then open <http://localhost:3000> and sign in as `platform-admin` /
-`devpassword123`. There are ten test identities, one per role. See
-[`infra/README.md`](./infra/README.md) for the full list and for why
-committing these particular credentials is safe.
+`devpassword123`. There are nine test identities, one per role except the
+permitted-user role. See [`infra/README.md`](./infra/README.md) for the full
+list and for why committing these particular credentials is safe.
 
 Worth trying first, in about two minutes:
 
@@ -89,10 +89,12 @@ What it is not:
   pattern matching, not a model.
 - Not clinically validated. No real patient data was used anywhere in
   development, and none should be without your own governance process.
-- Accessibility is structural but unverified. The skip link, list semantics
-  on the lifecycle stepper, live regions on result surfaces and a
-  focus-trapped mobile nav are all in place. Whether the announcements make
-  sense read aloud has not been checked by a human on every page.
+- Accessibility and responsive layout are unverified. The skip link, list
+  semantics on the lifecycle rack, live regions on result surfaces and a
+  focus-trapped mobile nav are all in place. An earlier version of the
+  console passed a small-viewport check and a screen-reader pass, but it was
+  redesigned afterwards and neither has been repeated against the current
+  markup.
 
 [`SECURITY.md`](./SECURITY.md) lists the known gaps.
 

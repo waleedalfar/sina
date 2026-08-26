@@ -2,7 +2,7 @@
 
 This is a governance platform, so its own security posture is part of the
 product claim. This document states what is actually enforced, how it was
-verified, and — just as importantly — what is not protected.
+verified, and what is not protected.
 
 ## Reporting a vulnerability
 
@@ -27,13 +27,13 @@ hand-rolled decoder.
 Verified by test (`backend/tests/test_authentication.py`), against the real
 decode path rather than a stub:
 
-- `alg: none` tokens are refused — the classic JWT bypass. `algorithms=` is
+- `alg: none` tokens are refused, the classic JWT bypass. `algorithms=` is
   passed explicitly on every decode so it cannot be negotiated away.
 - A token signed by the wrong key is refused.
 - Expiry, issuer and audience are each enforced, not merely present.
 - An identity deactivated in the platform is refused even while holding an
   otherwise valid, unexpired token.
-- Identities are keyed by `(issuer, subject)`, not subject alone — two
+- Identities are keyed by `(issuer, subject)`, not subject alone, so two
   identity providers issuing the same `sub` cannot collapse into one
   account.
 
@@ -60,7 +60,7 @@ Safety, Privacy, Security, AI Governance and Compliance each have a named
 role. One person cannot sign two categories in the same review cycle, an
 application's creator cannot sign their own application even if they hold
 the role, and the transition to Approved is *system-triggered* as a side
-effect of the final approval — there is no manual path to it. A test
+effect of the final approval. There is no manual path to it. A test
 asserts against the transition table itself that no such edge exists, so
 adding one fails the build rather than silently becoming policy.
 
@@ -94,10 +94,10 @@ Append-only, with two independent layers:
    two implementations of one hash will eventually disagree and report
    false breaks.
 
-Honest limit: this makes tampering **detectable**, not impossible. A
-sufficiently privileged database administrator can still alter history —
-detectably, but they can. Making that impossible needs an append-only
-store outside this database, which MVP does not have.
+This makes tampering **detectable**, not impossible. A sufficiently
+privileged database administrator can still alter history. Detectably, but
+they can. Making that impossible needs an append-only store outside this
+database, which MVP does not have.
 
 ### PHI handling
 
@@ -141,8 +141,8 @@ safe one, and each has a test:
 
 ## What is NOT protected
 
-Stated plainly, because a governance tool that overstates its own assurance
-is worse than one that admits its edges.
+A governance tool that overstates its own assurance is worse than one that
+admits its edges.
 
 - **The development compose file is not a production deployment.** Keycloak
   runs in dev mode without TLS. There is no HTTPS anywhere in it, no
@@ -155,11 +155,19 @@ is worse than one that admits its edges.
   decision to accept that trade, not a claim that the detection is good.
 - **Rate limiting covers the inference gateway only.** Other endpoints are
   not rate limited.
-- **Single tenant.** Every entity carries a `tenant_id` so this can change
-  without a breaking migration, but no tenant isolation is enforced today.
+- **Single tenant.** Every tenant-owned entity carries a `tenant_id` so this
+  can change without a breaking migration, but no tenant isolation is
+  enforced today.
 - **Tamper evidence is not tamper prevention** at the database-administrator
-  level — see Audit above.
+  level. See Audit above.
 - **No formal threat model or third-party penetration test** has been done.
+- **The console's accessibility and responsive layout are unverified.** The
+  structural work is in place: a skip link, list semantics on the lifecycle
+  rack, live regions on result surfaces, a focus-trapped mobile nav. An
+  earlier version of the console did pass a 430px responsive check and a
+  VoiceOver pass, but the interface was redesigned afterwards and the markup
+  changed substantially. Neither pass has been repeated. Treat both as
+  outstanding, not as polish.
 - **This is not a compliance certification.** It implements technical
   controls that contribute to HIPAA/GDPR/EU-AI-Act-shaped requirements. It
   does not make an organization compliant, and none of it is legal advice.
@@ -169,7 +177,7 @@ is worse than one that admits its edges.
 ## How this was verified
 
 174 backend tests at 90% line coverage, plus 47 frontend tests over the
-logic that encodes rules. Both suites run against real infrastructure — a
+logic that encodes rules. Both suites run against real infrastructure: a
 real Postgres, so the audit triggers and the privilege revocation are the
 ones that ship, rather than a substitute that behaves differently.
 
@@ -178,7 +186,7 @@ docker compose exec backend python -m pytest -q --cov=app   # backend
 cd frontend && npm test                                     # frontend
 ```
 
-Before that, every module was verified live against running infrastructure
-— real tokens, real virus scans, real inference, a real approval cycle.
-Both matter: the live passes found contract mismatches that tests would
-not, and the tests catch the regressions that live passes never re-check.
+Before that, every module was verified live against running infrastructure:
+real tokens, real virus scans, real inference, a real approval cycle. Both
+matter. The live passes found contract mismatches that tests would not, and
+the tests catch the regressions that live passes never re-check.
