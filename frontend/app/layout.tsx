@@ -22,7 +22,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sina — AI Governance Console",
+  title: "Sina AI Governance Console",
   description: "Operate, evaluate, and govern AI systems inside a regulated healthcare environment.",
 };
 
