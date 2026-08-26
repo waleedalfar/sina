@@ -1,23 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Boxes, ClipboardCheck, ClipboardList, ShieldCheck, Inbox, ArrowRight } from "lucide-react";
 import { StatTile } from "@/components/ui/StatTile";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TableNote } from "@/components/ui/Table";
 import { useGovernanceSummary, useMyApprovalQueue, useRecentAuditEvents } from "@/lib/hooks/useDashboard";
 import { useMe } from "@/lib/hooks/useMe";
 import { hasRoleKind } from "@/lib/auth/roles";
-import { lifecycleTone, severityTone, LIFECYCLE_LABEL } from "@/lib/status";
+import { lifecycleTone, severityTone, LIFECYCLE_LABEL, SEVERITY_LABEL, TONE_MARK, TONE_TEXT } from "@/lib/status";
 import type { LifecycleState } from "@/types/api";
 
 export default function DashboardPage() {
   const { data: me } = useMe();
   const { data: summary, isLoading: summaryLoading } = useGovernanceSummary();
   const { data: queue, isLoading: queueLoading } = useMyApprovalQueue();
-  const canReadAudit = !!me && (hasRoleKind(me.roles, "admin") || hasRoleKind(me.roles, "signoff") || hasRoleKind(me.roles, "readonly"));
+  const isAdmin = !!me && hasRoleKind(me.roles, "admin");
+  const isSignoff = !!me && hasRoleKind(me.roles, "signoff");
+  const canReadAudit = !!me && (isAdmin || isSignoff || hasRoleKind(me.roles, "readonly"));
   const { data: recentEvents } = useRecentAuditEvents(8);
 
   const totalApplications = summary ? Object.values(summary.applications_by_state).reduce((a, b) => a + b, 0) : 0;
@@ -25,133 +28,180 @@ export default function DashboardPage() {
   const inProduction = summary?.applications_by_state["production"] ?? 0;
   const modelsApproved = summary?.model_versions_by_approval_status["approved"] ?? 0;
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-primary">
-          Welcome back{me?.display_name ? `, ${me.display_name.split(" ")[0]}` : ""}
-        </h1>
-        <p className="text-sm text-secondary mt-0.5">Here&apos;s what&apos;s happening across your AI systems right now.</p>
-      </div>
+  // Which register you are reading is a fact about your roles, and saying
+  // so out loud is the point: an auditor should never wonder whether they
+  // are seeing everything or only their slice.
+  const roleLabel = isAdmin ? "Administrator" : isSignoff ? "Reviewer" : canReadAudit ? "Auditor" : "Operator";
+  const queueTitle = isSignoff ? "Your sign-off queue" : "Requires your action";
+  const queueFoot = isSignoff
+    ? "You see only applications where a category you hold is required."
+    : isAdmin
+      ? "Everything tenant-wide that is blocked on a person."
+      : "Items assigned to you.";
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  return (
+    <>
+      <PageHeader
+        title="Control Plane Status"
+        description={
+          <>
+            Single tenant · signed in as{" "}
+            <span className="font-mono text-primary">{me?.display_name ?? me?.email ?? "…"}</span>
+          </>
+        }
+        actions={
+          <span className="border border-strong px-4 py-2.5 font-mono text-[10px] tracking-[0.16em] text-warning uppercase">
+            {roleLabel} view
+          </span>
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {summaryLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[92px]" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[124px]" />)
         ) : (
           <>
-            <StatTile index={0} label="Applications" value={totalApplications} icon={ClipboardCheck} accent="gradient" />
-            <StatTile index={1} label="In Governance Review" value={inReview} icon={ClipboardList} hint="awaiting sign-off" />
-            <StatTile index={2} label="In Production" value={inProduction} icon={Boxes} />
-            <StatTile index={3} label="Model Versions Approved" value={modelsApproved} icon={ShieldCheck} />
+            <StatTile label="Applications" value={pad(totalApplications)} icon={ClipboardCheck} />
+            <StatTile
+              label="In Governance Review"
+              value={pad(inReview)}
+              icon={ClipboardList}
+              tone={inReview > 0 ? "info" : "neutral"}
+              hint="awaiting sign-off"
+            />
+            <StatTile label="In Production" value={pad(inProduction)} icon={Boxes} tone="success" />
+            <StatTile label="Model Versions Approved" value={pad(modelsApproved)} icon={ShieldCheck} tone="success" />
           </>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <Card>
           <CardHeader>
-            <CardTitle>My Approval Queue</CardTitle>
-            {queue && queue.length > 0 && <StatusPill tone="warning" label={`${queue.length} pending`} />}
+            <CardTitle>{queueTitle}</CardTitle>
+            <span className="font-mono text-[9.5px] tracking-[0.12em] text-warning uppercase">{roleLabel} view</span>
           </CardHeader>
-          <CardContent className="p-0">
-            {queueLoading ? (
-              <div className="space-y-2 p-5">
-                <Skeleton className="h-10" />
-                <Skeleton className="h-10" />
-              </div>
-            ) : !queue || queue.length === 0 ? (
-              <EmptyState icon={Inbox} message="Nothing waiting on your sign-off right now." />
-            ) : (
-              <ul className="divide-y divide-[var(--color-border-hairline)]">
-                {queue.map((item, i) => (
-                  <motion.li
-                    key={`${item.resource_id}-${item.category}`}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.25, delay: i * 0.03 }}
+          {queueLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </div>
+          ) : !queue || queue.length === 0 ? (
+            <PanelEmpty message="Nothing is waiting on your sign-off right now." />
+          ) : (
+            <ul>
+              {queue.map((item) => (
+                <li key={`${item.resource_id}-${item.category}`}>
+                  <Link
+                    href={item.resource_type === "application" ? `/applications/${item.resource_id}` : `/models`}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-b border-l-[3px] border-hairline border-l-warning px-4 py-3 transition-colors hover:bg-raised"
                   >
-                    <Link
-                      href={item.resource_type === "application" ? `/applications/${item.resource_id}` : `/models`}
-                      className="flex items-center justify-between px-5 py-3 hover:bg-raised transition-colors group"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-primary">{item.resource_name}</p>
-                        <p className="text-xs text-tertiary capitalize">
-                          {item.category.replace("_", " ")} sign-off · {item.resource_type.replace("_", " ")}
-                        </p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-tertiary group-hover:text-cyan group-hover:translate-x-0.5 transition-all" />
-                    </Link>
-                  </motion.li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
+                    <div className="min-w-0">
+                      <p className="truncate text-[13.5px] font-medium text-primary">{item.resource_name}</p>
+                      <p className="mt-0.5 font-mono text-[10px] text-secondary">
+                        {item.category.replace(/_/g, " ")} sign-off · {item.resource_type.replace(/_/g, " ")}
+                      </p>
+                    </div>
+                    <span className="border border-warning px-2.5 py-1.5 font-mono text-[9px] tracking-[0.16em] text-warning uppercase">
+                      Sign off
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <TableNote>{queueFoot}</TableNote>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Applications by State</CardTitle>
+            <CardTitle>Applications by state</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {summaryLoading ? (
+          {summaryLoading ? (
+            <div className="p-4">
               <Skeleton className="h-40" />
-            ) : (
-              Object.entries(summary?.applications_by_state ?? {})
+            </div>
+          ) : (
+            <ul>
+              {Object.entries(summary?.applications_by_state ?? {})
                 .filter(([, count]) => count > 0)
-                .map(([state, count]) => (
-                  <div key={state} className="flex items-center justify-between">
-                    <StatusPill tone={lifecycleTone(state as LifecycleState)} label={LIFECYCLE_LABEL[state as LifecycleState] ?? state} />
-                    <span className="text-sm font-mono font-medium text-primary">{count}</span>
-                  </div>
-                ))
-            )}
-          </CardContent>
+                .map(([state, count]) => {
+                  const tone = lifecycleTone(state as LifecycleState);
+                  return (
+                    <li
+                      key={state}
+                      className="flex items-center justify-between gap-3 border-b border-l-[3px] border-hairline px-4 py-2.5 last:border-b-0"
+                      style={{ borderLeftColor: TONE_MARK[tone] }}
+                    >
+                      <StatusPill tone={tone} label={LIFECYCLE_LABEL[state as LifecycleState] ?? state} />
+                      <span className="font-mono text-[13px] font-semibold tabular-nums">{pad(count)}</span>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
         </Card>
       </div>
 
       {canReadAudit && (
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <Link href="/audit" className="text-xs text-cyan hover:underline flex items-center gap-1">
+            <CardTitle>Recent activity</CardTitle>
+            <Link
+              href="/audit"
+              className="flex items-center gap-1 font-mono text-[9.5px] tracking-[0.14em] text-accent uppercase hover:underline"
+            >
               View audit log <ArrowRight className="h-3 w-3" />
             </Link>
           </CardHeader>
-          <CardContent className="p-0">
-            {!recentEvents ? (
-              <div className="space-y-2 p-5">
-                <Skeleton className="h-8" />
-                <Skeleton className="h-8" />
-                <Skeleton className="h-8" />
-              </div>
-            ) : recentEvents.length === 0 ? (
-              <EmptyState icon={Inbox} message="No audit activity yet." />
-            ) : (
-              <ul className="divide-y divide-[var(--color-border-hairline)]">
-                {recentEvents.map((event) => (
-                  <li key={event.id} className="flex items-center justify-between px-5 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <StatusPill tone={severityTone(event.severity)} label={event.severity.replace("_", " ")} />
-                      <span className="text-sm text-primary font-mono">{event.event_type}</span>
+          {!recentEvents ? (
+            <div className="flex flex-col gap-2 p-4">
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+            </div>
+          ) : recentEvents.length === 0 ? (
+            <PanelEmpty message="No audit activity yet." />
+          ) : (
+            <ul>
+              {recentEvents.map((event) => {
+                const tone = severityTone(event.severity);
+                return (
+                  <li
+                    key={event.id}
+                    className="grid grid-cols-[52px_minmax(0,1fr)] gap-3 border-b border-hairline px-4 py-2.5 last:border-b-0"
+                  >
+                    <span className="font-mono text-[10px] text-secondary">
+                      {new Date(event.occurred_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <div className="min-w-0">
+                      <div className={`truncate font-mono text-[11px] ${TONE_TEXT[tone]}`}>{event.event_type}</div>
+                      <div className="mt-0.5 font-mono text-[9px] tracking-[0.14em] text-secondary uppercase">
+                        {SEVERITY_LABEL[event.severity]} · {event.resource_type}
+                      </div>
                     </div>
-                    <span className="text-xs text-tertiary">{new Date(event.occurred_at).toLocaleTimeString()}</span>
                   </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
+                );
+              })}
+            </ul>
+          )}
         </Card>
       )}
-    </div>
+    </>
   );
 }
 
-function EmptyState({ icon: Icon, message }: { icon: typeof Inbox; message: string }) {
+/** Counts are set as two-digit mono figures so a row of tiles reads as a
+ * gauge panel rather than as prose. */
+function pad(value: number) {
+  return value < 10 ? `0${value}` : String(value);
+}
+
+function PanelEmpty({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 py-10 text-center">
-      <Icon className="h-6 w-6 text-tertiary" strokeWidth={1.5} />
-      <p className="text-sm text-tertiary">{message}</p>
+    <div className="flex flex-col items-center gap-2 px-4 py-9 text-center">
+      <Inbox className="h-5 w-5 text-tertiary" strokeWidth={1.5} aria-hidden="true" />
+      <p className="text-[12.5px] text-secondary">{message}</p>
     </div>
   );
 }

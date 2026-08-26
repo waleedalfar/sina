@@ -61,26 +61,30 @@ export function SessionExpiredGate() {
   if (!expired) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(16,23,26,0.6)] p-4">
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="session-expired-title"
-        className="w-full max-w-sm rounded-xl border border-hairline bg-overlay p-6 text-center shadow-[var(--shadow-raised)]"
+        className="w-full max-w-sm border border-rule bg-surface text-center shadow-[var(--shadow-modal)]"
       >
-        <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-raised text-tertiary">
-          <Clock3 className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h2 id="session-expired-title" className="text-base font-semibold text-primary">
+        <div className="bg-rule px-4 py-3 text-left font-mono text-[10px] tracking-[0.22em] text-surface uppercase">
           Session expired
-        </h2>
-        <p className="mt-2 text-sm text-secondary">
-          Your sign-in is no longer valid, so nothing on this page is being kept up to date. Sign in again to
-          pick up where you left off.
-        </p>
-        <Button variant="primary" size="sm" className="mt-5 w-full" onClick={signInAgain}>
-          Sign in again
-        </Button>
+        </div>
+        <div className="flex flex-col items-center gap-3 p-5">
+          <div className="flex h-11 w-11 items-center justify-center border border-dashed border-warning text-warning">
+            <Clock3 className="h-5 w-5" strokeWidth={1.75} />
+          </div>
+          <h2 id="session-expired-title" className="text-[15px] font-semibold text-primary">
+            Your sign-in is no longer valid
+          </h2>
+          <p className="text-[12.5px] leading-relaxed text-secondary">
+            Nothing on this page is being kept up to date. Sign in again to pick up where you left off.
+          </p>
+          <Button variant="primary" className="mt-1 w-full" onClick={signInAgain}>
+            Sign in again
+          </Button>
+        </div>
       </div>
     </div>
   );

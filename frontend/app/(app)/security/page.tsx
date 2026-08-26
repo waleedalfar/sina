@@ -1,19 +1,26 @@
 "use client";
 
-import { Lock } from "lucide-react";
 import { useSecurityEvents } from "@/lib/hooks/useAudit";
 import { useMe } from "@/lib/hooks/useMe";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { RestrictedState } from "@/components/ui/ResourceState";
 import { canReadAudit } from "@/lib/auth/roles";
 import type { SecurityEventsOut } from "@/types/api";
 
-const COLUMNS: { key: keyof SecurityEventsOut; label: string }[] = [
-  { key: "policy_violations", label: "Policy Violations" },
-  { key: "phi_events", label: "PHI Events" },
-  { key: "failed_authentication", label: "Failed Authentication" },
-  { key: "suspicious_prompts", label: "Suspicious Prompts" },
-  { key: "security_findings", label: "Security Findings" },
+/*
+  MasterPrompt §26's five columns, kept as five columns rather than five
+  separate cards: they are one instrument panel read across, and the point
+  is the relative height of the counts. Each column caps in the colour of
+  what it counts — PHI events are teal because redaction working is not an
+  incident, everything else is brick.
+*/
+const COLUMNS: { key: keyof SecurityEventsOut; label: string; cap: string; count: string }[] = [
+  { key: "policy_violations", label: "Policy Violations", cap: "border-t-danger", count: "text-danger" },
+  { key: "phi_events", label: "PHI Events", cap: "border-t-accent", count: "text-accent" },
+  { key: "failed_authentication", label: "Failed Authentication", cap: "border-t-warning", count: "text-warning" },
+  { key: "suspicious_prompts", label: "Suspicious Prompts", cap: "border-t-danger", count: "text-danger" },
+  { key: "security_findings", label: "Security Findings", cap: "border-t-danger", count: "text-danger" },
 ];
 
 export default function SecurityPage() {
@@ -22,7 +29,7 @@ export default function SecurityPage() {
 
   if (meLoading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96" />
       </div>
@@ -30,60 +37,65 @@ export default function SecurityPage() {
   }
 
   if (!me || !canReadAudit(me.roles)) {
-    return (
-      <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised text-tertiary">
-          <Lock className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h2 className="text-base font-semibold text-primary">Access restricted</h2>
-        <p className="max-w-md text-sm text-secondary">
-          The security dashboard is visible to admin, sign-off, and read-only roles only.
-        </p>
-      </Card>
-    );
+    return <RestrictedState what="The security dashboard requires an admin, sign-off or read-only role." />;
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-lg font-semibold text-primary">Security</h1>
-        <p className="text-sm text-secondary mt-0.5">
-          §26&apos;s five-column security view, sourced entirely from the audit event stream — no separate SIEM in
-          MVP 0.1.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="Security"
+        description="Sourced entirely from the audit event stream — there is no separate SIEM in MVP 0.1."
+        actions={
+          <span className="font-mono text-[10px] tracking-[0.12em] text-secondary uppercase">
+            Across all applications and identities
+          </span>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 border border-hairline sm:grid-cols-2 xl:grid-cols-5">
         {COLUMNS.map((col) => {
           const events = data?.[col.key] as Record<string, unknown>[] | undefined;
           return (
-            <Card key={col.key}>
-              <CardHeader>
-                <CardTitle>{col.label}</CardTitle>
-                {events && <span className="text-xs font-mono text-tertiary">{events.length}</span>}
-              </CardHeader>
-              <CardContent className="p-0">
-                <ul className="max-h-[480px] overflow-y-auto divide-y divide-[var(--color-border-hairline)]">
-                  {isLoading &&
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <li key={i} className="px-4 py-3">
-                        <Skeleton className="h-4 w-full" />
-                      </li>
-                    ))}
-                  {!isLoading && events?.length === 0 && (
-                    <li className="px-4 py-8 text-center text-xs text-tertiary">None</li>
-                  )}
-                  {events?.map((event, i) => (
-                    <SecurityEventRow key={i} event={event} />
+            <section
+              key={col.key}
+              className="flex min-w-0 flex-col border-b border-hairline last:border-b-0 xl:border-r xl:border-b-0 xl:last:border-r-0"
+            >
+              <div className={`border-t-[3px] border-b border-hairline bg-raised px-3 py-3.5 ${col.cap}`}>
+                <div className="label-mono">{col.label}</div>
+                <div className={`mt-2 font-mono text-3xl leading-none font-semibold tabular-nums ${col.count}`}>
+                  {isLoading ? "—" : pad(events?.length ?? 0)}
+                </div>
+                <div className="mt-1.5 font-mono text-[9px] text-secondary">
+                  {isLoading ? "loading" : events?.length === 0 ? "nothing recorded" : "most recent first"}
+                </div>
+              </div>
+
+              <ul className="max-h-[480px] overflow-y-auto">
+                {isLoading &&
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <li key={i} className="border-b border-hairline px-3 py-3">
+                      <Skeleton className="h-3.5 w-full" />
+                    </li>
                   ))}
-                </ul>
-              </CardContent>
-            </Card>
+                {!isLoading && events?.length === 0 && (
+                  <li className="px-3 py-6 text-center font-mono text-[9.5px] tracking-[0.14em] text-secondary uppercase">
+                    None
+                  </li>
+                )}
+                {events?.map((event, i) => (
+                  <SecurityEventRow key={i} event={event} />
+                ))}
+              </ul>
+            </section>
           );
         })}
       </div>
-    </div>
+    </>
   );
+}
+
+function pad(value: number) {
+  return value < 10 ? `0${value}` : String(value);
 }
 
 function SecurityEventRow({ event }: { event: Record<string, unknown> }) {
@@ -92,10 +104,19 @@ function SecurityEventRow({ event }: { event: Record<string, unknown> }) {
   const actor = typeof event.actor_identity_id === "string" ? event.actor_identity_id : null;
 
   return (
-    <li className="px-4 py-3 space-y-1">
-      {eventType && <p className="text-xs font-medium text-primary">{eventType}</p>}
-      {occurredAt && <p className="text-[11px] text-tertiary">{new Date(occurredAt).toLocaleString()}</p>}
-      {actor && <p className="text-[11px] font-mono text-secondary truncate">{actor}</p>}
+    <li className="border-b border-hairline px-3 py-2.5 last:border-b-0">
+      {occurredAt && (
+        <p className="font-mono text-[9.5px] text-secondary">
+          {new Date(occurredAt).toLocaleString(undefined, {
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      )}
+      {eventType && <p className="mt-0.5 font-mono text-[11px] break-words text-primary/85">{eventType}</p>}
+      {actor && <p className="mt-0.5 truncate font-mono text-[9.5px] text-secondary">{actor}</p>}
     </li>
   );
 }

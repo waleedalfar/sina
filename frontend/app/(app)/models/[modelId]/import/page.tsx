@@ -2,12 +2,13 @@
 
 import { use, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, Lock, ArrowLeft } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import { useModel, useImportModelVersion } from "@/lib/hooks/useModel";
 import { useMe } from "@/lib/hooks/useMe";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { RestrictedState } from "@/components/ui/ResourceState";
 import { hasAnyRole, IMPORT_MODEL_VERSION_ROLES } from "@/lib/auth/roles";
 import { ApiError } from "@/lib/api/client";
 
@@ -28,30 +29,15 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
 
   if (modelLoading || meLoading || !model) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96" />
       </div>
     );
   }
 
-  const canImport = me && hasAnyRole(me.roles, IMPORT_MODEL_VERSION_ROLES);
-
-  if (!canImport) {
-    return (
-      <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised text-tertiary">
-          <Lock className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h2 className="text-base font-semibold text-primary">Access restricted</h2>
-        <p className="max-w-md text-sm text-secondary">
-          Importing a Model Version requires the ML Engineer role.
-        </p>
-        <Button variant="secondary" size="sm" onClick={() => router.push(`/models/${modelId}`)}>
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to {model.name}
-        </Button>
-      </Card>
-    );
+  if (!me || !hasAnyRole(me.roles, IMPORT_MODEL_VERSION_ROLES)) {
+    return <RestrictedState what="Importing a Model Version requires the ML Engineer role." />;
   }
 
   const errorMessage =
@@ -79,95 +65,121 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-primary">Import Version — {model.name}</h1>
-        <p className="text-sm text-secondary mt-0.5">
-          Every artifact is hashed (SHA-256) and scanned for malware before it&apos;s registered — a positive scan
-          blocks the import outright, no override.
-        </p>
-      </div>
+    <div className="flex max-w-3xl flex-col gap-4.5">
+      <PageHeader eyebrow={`Models / ${model.name} / Import version`} title="Import version" />
 
-      <Card className="p-6 space-y-4 max-w-2xl">
-        {errorMessage && (
-          <div className="rounded-lg border border-danger/30 bg-danger-bg px-4 py-2.5 text-xs text-danger">
-            {errorMessage}
-          </div>
+      {errorMessage && (
+        <p className="border border-danger border-l-4 bg-danger-bg px-4 py-3 text-[12.5px] text-danger">{errorMessage}</p>
+      )}
+
+      {/* The drop zone is hatched, like every "nothing here yet" surface in
+          this system. Filling it swaps the hatch for the artifact's own
+          facts. */}
+      <button
+        type="button"
+        onClick={() => fileInput.current?.click()}
+        className={`flex flex-col items-center gap-2.5 border border-dashed border-strong px-5 py-7 text-center transition-colors hover:border-accent ${
+          file ? "bg-surface" : "hatch"
+        }`}
+      >
+        {file ? (
+          <>
+            <UploadCloud className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
+            <span className="font-mono text-[11px] tracking-[0.14em] text-accent uppercase">Ready to import</span>
+            <span className="max-w-full truncate font-mono text-[12.5px] text-primary">{file.name}</span>
+            <span className="font-mono text-[10px] text-secondary">
+              {(file.size / (1024 * 1024)).toFixed(1)} MB · hashed and scanned on arrival
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-mono text-[11px] tracking-[0.18em] text-secondary uppercase">Choose weights archive</span>
+            <span className="text-[12.5px] text-secondary">
+              .gguf · hashed with SHA-256 and malware-scanned on arrival
+            </span>
+            <span className="mt-1 border border-strong bg-surface px-4 py-2.5 font-mono text-[10px] tracking-[0.16em] uppercase">
+              Choose file
+            </span>
+          </>
         )}
+      </button>
+      <input ref={fileInput} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
 
-        <div>
-          <label className="text-xs text-tertiary">Model artifact (.gguf)</label>
-          <div
-            onClick={() => fileInput.current?.click()}
-            className="mt-1 flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-hairline bg-raised px-4 py-6 text-sm text-secondary hover:border-strong"
-          >
-            <UploadCloud className="h-5 w-5 text-tertiary shrink-0" />
-            {file ? (
-              <span className="font-mono text-xs text-primary truncate">
-                {file.name} ({(file.size / (1024 * 1024)).toFixed(1)} MB)
-              </span>
-            ) : (
-              <span>Click to choose a file</span>
-            )}
-          </div>
-          <input
-            ref={fileInput}
-            type="file"
-            className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
+      <label className="flex flex-col gap-1.5">
+        <span className="label-mono">Version label — auto-generated if blank</span>
+        <input
+          value={versionLabel}
+          onChange={(e) => setVersionLabel(e.target.value)}
+          placeholder="2.4.3 (auto)"
+          className="field field-mono"
+        />
+      </label>
+
+      {/*
+        The three declared fields are boxed and spined brick red together,
+        under one heading that says who asserted them. This is the design
+        making an honest limitation visible rather than burying it: Sina
+        records these as the importer's claim and cannot verify any of
+        them, so they must never look like platform-verified facts.
+      */}
+      <section className="border border-danger">
+        <div className="flex items-center justify-between gap-3 border-b border-danger/40 bg-danger-bg px-3.5 py-2.5">
+          <span className="font-mono text-[10px] tracking-[0.2em] text-danger uppercase">Declared by importer</span>
+          <span className="font-mono text-[9px] tracking-[0.12em] text-danger uppercase">Not verified by Sina</span>
         </div>
-
-        <Field label="Version label" placeholder="auto-generated if left blank" value={versionLabel} onChange={setVersionLabel} />
-        <Field label="Declared source" placeholder="e.g. a Hugging Face repo id — importer-entered, not verified" value={declaredSource} onChange={setDeclaredSource} />
-        <Field label="Declared license" placeholder="importer-entered, not verified" value={declaredLicense} onChange={setDeclaredLicense} />
-        <Field label="Base model version ID" placeholder="optional — if this is a fine-tune" value={baseModelVersionId} onChange={setBaseModelVersionId} mono />
-
-        <div>
-          <label className="text-xs text-tertiary">Known limitations</label>
-          <textarea
-            value={knownLimitations}
-            onChange={(e) => setKnownLimitations(e.target.value)}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan"
-          />
+        <div className="flex flex-col gap-3.5 p-3.5">
+          <p className="text-[12.5px] leading-relaxed text-secondary">
+            These fields are recorded as the importer&apos;s assertion. Sina does not and cannot confirm them; they are
+            surfaced with this caveat everywhere they appear downstream.
+          </p>
+          <label className="flex flex-col gap-1.5">
+            <span className="label-mono">Declared source</span>
+            <input
+              value={declaredSource}
+              onChange={(e) => setDeclaredSource(e.target.value)}
+              placeholder="e.g. a Hugging Face repo id"
+              className="field field-mono field-declared"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label-mono">Declared license</span>
+            <input
+              value={declaredLicense}
+              onChange={(e) => setDeclaredLicense(e.target.value)}
+              placeholder="e.g. Apache-2.0"
+              className="field field-mono field-declared"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label-mono">Base version id — fine-tunes only</span>
+            <input
+              value={baseModelVersionId}
+              onChange={(e) => setBaseModelVersionId(e.target.value)}
+              placeholder="optional"
+              className="field field-mono field-declared"
+            />
+          </label>
         </div>
+      </section>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" size="sm" onClick={() => router.push(`/models/${modelId}`)}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="sm" disabled={!file || importVersion.isPending} onClick={submit}>
-            {importVersion.isPending ? "Importing…" : "Import"}
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
+      <label className="flex flex-col gap-1.5">
+        <span className="label-mono">Known limitations</span>
+        <textarea
+          value={knownLimitations}
+          onChange={(e) => setKnownLimitations(e.target.value)}
+          rows={3}
+          className="field resize-y leading-relaxed"
+        />
+      </label>
 
-function Field({
-  label,
-  placeholder,
-  value,
-  onChange,
-  mono,
-}: {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-tertiary">{label}</label>
-      <input
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className={`mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan placeholder:text-tertiary ${mono ? "font-mono" : ""}`}
-      />
+      <div className="flex justify-end gap-2.5">
+        <Button variant="secondary" onClick={() => router.push(`/models/${modelId}`)}>
+          Cancel
+        </Button>
+        <Button variant="primary" disabled={!file || importVersion.isPending} onClick={submit}>
+          {importVersion.isPending ? "Importing…" : "Import & scan"}
+        </Button>
+      </div>
     </div>
   );
 }

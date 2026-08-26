@@ -9,7 +9,7 @@ import { QueryProvider } from "@/lib/query/provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="data-theme" defaultTheme="dark" enableSystem={false}>
+    <ThemeProvider attribute="data-theme" defaultTheme="light" enableSystem={false}>
       <AuthProvider {...oidcConfig}>
         <TokenBridge />
         {/* globals.css's `prefers-reduced-motion` block only catches plain

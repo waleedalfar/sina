@@ -1,43 +1,40 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
-import { Card } from "./Card";
+import { cn } from "@/lib/cn";
+import type { Tone } from "@/lib/status";
 
 interface StatTileProps {
   label: string;
   value: string | number;
   icon: LucideIcon;
-  accent?: "gradient" | "neutral";
+  tone?: Tone;
   hint?: string;
   index?: number;
 }
 
-export function StatTile({ label, value, icon: Icon, accent = "neutral", hint, index = 0 }: StatTileProps) {
+/*
+  A gauge on the control plane: raised fill, a 3px cap in the tone colour
+  along the top, and the number set large in mono so a column of tiles
+  reads at a glance. The icon is subordinate — the number is the tile.
+*/
+const capClasses: Record<Tone, string> = {
+  success: "border-t-success text-success",
+  warning: "border-t-warning text-warning",
+  danger: "border-t-danger text-danger",
+  info: "border-t-accent text-accent",
+  neutral: "border-t-rule text-primary",
+};
+
+export function StatTile({ label, value, icon: Icon, tone = "neutral", hint }: StatTileProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
-    >
-      <Card className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-secondary uppercase tracking-wide">{label}</p>
-            <p className="mt-2 text-2xl font-semibold text-primary tabular-nums font-mono">{value}</p>
-            {hint && <p className="mt-1 text-xs text-tertiary">{hint}</p>}
-          </div>
-          <div
-            className={
-              accent === "gradient"
-                ? "flex h-9 w-9 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#22d3ee_0%,#8b5cf6_100%)] text-inverted"
-                : "flex h-9 w-9 items-center justify-center rounded-lg bg-raised text-secondary"
-            }
-          >
-            <Icon className="h-4.5 w-4.5" strokeWidth={2} />
-          </div>
-        </div>
-      </Card>
-    </motion.div>
+    <div className={cn("flex flex-col gap-2.5 border border-t-[3px] border-hairline bg-raised p-4", capClasses[tone])}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="label-mono">{label}</p>
+        <Icon className="h-3.5 w-3.5 shrink-0 text-tertiary" strokeWidth={2} aria-hidden="true" />
+      </div>
+      <p className="font-mono text-[2.375rem] leading-none font-semibold tabular-nums">{value}</p>
+      {hint && <p className="font-mono text-[10px] text-secondary">{hint}</p>}
+    </div>
   );
 }

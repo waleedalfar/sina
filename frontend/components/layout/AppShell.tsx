@@ -52,15 +52,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* `tabIndex={-1}` so the skip link can actually move focus here —
             a plain anchor jump scrolls without moving the focus ring, which
             leaves a keyboard user's next Tab back at the top of the nav. */}
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto bg-surface outline-none">
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              className="mx-auto max-w-7xl px-4 py-6 sm:px-6"
+              transition={{ duration: 0.16, ease: [0.4, 0, 0.2, 1] }}
+              className="mx-auto flex max-w-7xl flex-col gap-4.5 px-4 py-6 sm:px-6"
             >
               {children}
             </motion.div>

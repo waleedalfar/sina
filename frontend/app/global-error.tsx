@@ -4,7 +4,7 @@
  * Last resort: the root layout itself failed, so `(app)/error.tsx` never
  * gets a chance to render. This file *replaces* the root layout, which
  * means it must supply its own `<html>`/`<body>` — and, per Next's docs,
- * global styles do not reach it, so nothing here can use the Aperture
+ * global styles do not reach it, so nothing here can use the Sina
  * design tokens. Everything is inlined and the palette is duplicated by
  * hand against `prefers-color-scheme`, since `data-theme` isn't readable
  * from here either.
@@ -30,7 +30,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
       >
         <div style={{ maxWidth: 420, padding: 24, textAlign: "center" }}>
           <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, color: "#7d8899", margin: 0 }}>
-            Aperture
+            Sina
           </p>
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: "8px 0 0" }}>The console failed to start</h1>
           <p style={{ fontSize: 14, lineHeight: 1.5, color: "#9aa5b6", margin: "12px 0 0" }}>

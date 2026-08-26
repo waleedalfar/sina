@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
@@ -12,33 +11,43 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
 }
 
+/*
+  Square, hairline-bordered, tracked uppercase mono. There is no rounding
+  and no fill gradient anywhere in this system: a control either carries
+  ink (primary/danger, a decision) or a hairline outline (everything else).
+  Motion is deliberately absent — a governance action should not feel
+  springy.
+*/
 const variantClasses: Record<Variant, string> = {
-  primary:
-    "text-inverted bg-[linear-gradient(135deg,#22d3ee_0%,#8b5cf6_100%)] hover:brightness-110 shadow-[var(--shadow-glow-cyan)]",
-  secondary: "bg-raised text-primary border border-hairline hover:border-strong",
-  ghost: "text-secondary hover:text-primary hover:bg-raised",
-  danger: "bg-danger-bg text-danger border border-danger/30 hover:bg-danger hover:text-inverted",
+  primary: "bg-accent text-inverted border border-accent-strong hover:bg-accent-strong",
+  secondary: "border border-strong text-primary hover:bg-raised",
+  ghost: "border border-transparent text-secondary hover:border-hairline hover:text-primary",
+  danger: "bg-danger text-inverted border border-danger-ink hover:brightness-95",
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: "h-8 px-3 text-xs gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
+  sm: "px-3.5 py-2 text-[9.5px] gap-1.5",
+  md: "px-4 py-2.5 text-[10px] gap-2",
 };
 
 export function Button({ variant = "secondary", size = "md", className, children, disabled, ...props }: ButtonProps) {
   return (
-    <motion.button
-      whileTap={disabled ? undefined : { scale: 0.97 }}
+    <button
       className={cn(
-        "inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-base",
+        "inline-flex items-center justify-center whitespace-nowrap font-mono uppercase tracking-[0.16em] transition-colors duration-150",
+        // A disabled control keeps its outline and goes flat rather than
+        // ghosting away — on this screen "you may not do this" is
+        // information, not an absence.
+        "disabled:pointer-events-none disabled:border-hairline disabled:bg-raised disabled:text-tertiary",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         variantClasses[variant],
         sizeClasses[size],
         className,
       )}
       disabled={disabled}
-      {...(props as React.ComponentProps<typeof motion.button>)}
+      {...props}
     >
       {children}
-    </motion.button>
+    </button>
   );
 }

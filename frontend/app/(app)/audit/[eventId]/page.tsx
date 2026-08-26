@@ -2,12 +2,15 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useAuditEvent } from "@/lib/hooks/useAudit";
 import { useMe } from "@/lib/hooks/useMe";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DataRow } from "@/components/ui/DataList";
+import { RestrictedState } from "@/components/ui/ResourceState";
 import { severityTone, SEVERITY_LABEL } from "@/lib/status";
 import { canReadAudit } from "@/lib/auth/roles";
 
@@ -18,7 +21,7 @@ export default function AuditEventDetailPage({ params }: { params: Promise<{ eve
 
   if (meLoading || isLoading || !event) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64" />
       </div>
@@ -26,70 +29,91 @@ export default function AuditEventDetailPage({ params }: { params: Promise<{ eve
   }
 
   if (!me || !canReadAudit(me.roles)) {
-    return (
-      <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised text-tertiary">
-          <Lock className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h2 className="text-base font-semibold text-primary">Access restricted</h2>
-      </Card>
-    );
+    return <RestrictedState what="Reading audit events requires an admin, sign-off or read-only role." />;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <Link href="/audit" className="inline-flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary mb-2">
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Audit Log
-          </Link>
-          <h1 className="text-lg font-semibold text-primary">{event.event_type}</h1>
-        </div>
-        <StatusPill tone={severityTone(event.severity)} label={SEVERITY_LABEL[event.severity]} />
-      </div>
+    <div className="flex max-w-4xl flex-col gap-4.5">
+      <Link
+        href="/audit"
+        className="inline-flex items-center gap-1.5 font-mono text-[9.5px] tracking-[0.14em] text-secondary uppercase hover:text-primary"
+      >
+        <ArrowLeft className="h-3 w-3" /> Back to audit log
+      </Link>
 
-      <Card className="p-6">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 text-sm">
-          <Detail label="Sequence" value={String(event.sequence_number)} />
-          <Detail label="Occurred" value={new Date(event.occurred_at).toLocaleString()} />
-          <Detail label="Actor" value={event.actor_identity_id ?? "system"} mono />
-          <Detail label="Resource type" value={event.resource_type ?? "—"} />
-          <Detail label="Resource ID" value={event.resource_id ?? "—"} mono />
-          <Detail label="Event ID" value={event.id} mono />
-        </div>
+      <PageHeader
+        eyebrow={`Audit / Event ${event.sequence_number}`}
+        title={<span className="font-mono text-2xl">{event.event_type}</span>}
+        aside={
+          <div className="mt-2.5 flex flex-wrap gap-2.5">
+            <StatusPill tone={severityTone(event.severity)} label={SEVERITY_LABEL[event.severity]} />
+            <span className="border border-strong px-2.5 py-1 font-mono text-[10px] tracking-[0.18em] text-secondary uppercase">
+              Append-only
+            </span>
+          </div>
+        }
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Record</CardTitle>
+        </CardHeader>
+        <DataRow label="Sequence">{event.sequence_number}</DataRow>
+        <DataRow label="Occurred at">{new Date(event.occurred_at).toISOString().replace("T", " ").replace("Z", " UTC")}</DataRow>
+        <DataRow label="Actor">{event.actor_identity_id ?? "system"}</DataRow>
+        <DataRow label="Resource type" tone="warning">
+          {event.resource_type ?? "—"}
+        </DataRow>
+        <DataRow label="Resource id">{event.resource_id ?? "—"}</DataRow>
+        <DataRow label="Event id">{event.id}</DataRow>
+        <DataRow label="Severity" tone={event.severity === "security_critical" ? "danger" : "default"}>
+          {event.severity}
+        </DataRow>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Payload</CardTitle>
         </CardHeader>
-        <CardContent>
-          <pre className="text-xs text-secondary bg-raised rounded-lg px-4 py-3 overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(event.payload, null, 2)}
-          </pre>
-        </CardContent>
+        <pre className="overflow-x-auto bg-input p-4 font-mono text-[11px] leading-[1.75] text-primary/80">
+          {JSON.stringify(event.payload, null, 2)}
+        </pre>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Hash Chain</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <Detail label="Previous event hash" value={event.prev_event_hash ?? "— (chain start)"} mono full />
-          <Detail label="This event's hash" value={event.event_hash} mono full />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function Detail({ label, value, mono, full }: { label: string; value: string; mono?: boolean; full?: boolean }) {
-  return (
-    <div className={full ? "space-y-1" : "flex items-center justify-between gap-3"}>
-      <span className="text-xs text-tertiary">{label}</span>
-      <span className={`text-xs text-primary ${mono ? "font-mono" : ""} ${full ? "block break-all" : "text-right truncate max-w-[160px]"}`}>
-        {value}
-      </span>
+      {/* The hash chain block. Drawn as two linked records rather than two
+          labelled strings, because the link is the whole point: this
+          event's hash is computed over the previous one, so altering any
+          earlier record breaks every hash after it. */}
+      <section className="border border-accent">
+        <div className="border-b border-accent/40 bg-accent-bg px-4 py-3 font-mono text-[10px] tracking-[0.22em] text-accent uppercase">
+          Hash chain block
+        </div>
+        <div className="flex flex-col p-4">
+          <div className="border border-hairline bg-raised px-3.5 py-3">
+            <div className="label-mono">
+              {event.prev_event_hash ? `Previous event ${event.sequence_number - 1} · hash` : "Chain start"}
+            </div>
+            <div className="mt-1.5 font-mono text-[11.5px] break-all text-secondary">
+              {event.prev_event_hash ?? "— no predecessor"}
+            </div>
+          </div>
+          <div aria-hidden="true" className="ml-5.5 h-6 w-px bg-accent" />
+          <div className="border border-accent bg-accent-bg px-3.5 py-3">
+            <div className="font-mono text-[9px] tracking-[0.18em] text-accent uppercase">
+              This event {event.sequence_number} · hash
+            </div>
+            <div className="mt-1.5 font-mono text-[11.5px] break-all text-primary">{event.event_hash}</div>
+          </div>
+          <p className="mt-3 font-mono text-[9.5px] leading-relaxed text-secondary">
+            The hash is computed in the database over the previous hash and this record. Altering any earlier record
+            breaks every hash after it — which is what{" "}
+            <Link href="/audit/integrity" className="text-accent underline">
+              the integrity check
+            </Link>{" "}
+            walks.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

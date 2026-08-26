@@ -3,7 +3,6 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "react-oidc-context";
-import { Aperture } from "lucide-react";
 import { takeReturnPath } from "@/lib/auth/session";
 
 /**
@@ -39,7 +38,12 @@ export default function AuthCallbackPage() {
 
   return (
     <div className="flex h-screen items-center justify-center bg-base">
-      <Aperture className="h-8 w-8 animate-pulse-live text-cyan" strokeWidth={2} />
+      <div aria-label="Completing sign-in" role="status" className="flex flex-col items-center gap-2.5">
+        <div className="h-2 w-9 border border-b-0 border-accent bg-accent" />
+        <div className="relative h-14 w-9 overflow-hidden rounded-b-lg border border-accent">
+          <div className="absolute inset-x-0 bottom-0 h-1/2 animate-pulse-live bg-accent/80" />
+        </div>
+      </div>
     </div>
   );
 }

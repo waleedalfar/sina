@@ -82,7 +82,7 @@ export function MobileNavDrawer({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-[rgba(16,23,26,0.42)]"
             aria-hidden="true"
           />
           <motion.div
@@ -95,7 +95,7 @@ export function MobileNavDrawer({
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 400, damping: 40 }}
-            className="absolute inset-y-0 left-0 flex w-64 max-w-[85vw] flex-col border-r border-hairline bg-surface outline-none"
+            className="absolute inset-y-0 left-0 flex w-71.5 max-w-[85vw] flex-col border-r border-strong bg-raised shadow-[8px_0_24px_rgba(16,23,26,0.25)] outline-none"
           >
             <div className="flex items-start justify-between">
               <SidebarBrand />
@@ -103,7 +103,7 @@ export function MobileNavDrawer({
                 type="button"
                 onClick={onClose}
                 aria-label="Close navigation"
-                className="m-4 rounded-lg p-2 text-secondary transition-colors hover:bg-raised hover:text-primary"
+                className="m-3.5 grid h-11 w-11 shrink-0 place-items-center border border-strong text-secondary transition-colors hover:text-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -111,7 +111,7 @@ export function MobileNavDrawer({
             {/* Closing on navigate is the expected behaviour for a modal
                 nav — leaving it open over the page just navigated to would
                 hide the result of the tap. */}
-            <SidebarNav roles={roles} surface="drawer" onNavigate={onClose} />
+            <SidebarNav roles={roles} onNavigate={onClose} compact={false} />
             <SidebarFooter />
           </motion.div>
         </div>

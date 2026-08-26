@@ -2,19 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ScrollText, ShieldCheck, Lock } from "lucide-react";
+import { ScrollText, ShieldCheck } from "lucide-react";
 import { useAuditEvents } from "@/lib/hooks/useAudit";
 import { useMe } from "@/lib/hooks/useMe";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { StatusPill } from "@/components/ui/StatusPill";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { severityTone, SEVERITY_LABEL } from "@/lib/status";
+import { EmptyState, RestrictedState } from "@/components/ui/ResourceState";
+import { TableHead, TableNote, TableRow, Cell } from "@/components/ui/Table";
+import { severityTone, SEVERITY_LABEL, TONE_MARK, TONE_TINT, TONE_TEXT } from "@/lib/status";
 import { canReadAudit } from "@/lib/auth/roles";
 import type { Severity } from "@/types/api";
 
 const PAGE_SIZE = 50;
+const COLS = "92px minmax(0,1.3fr) 140px 148px 152px minmax(0,1fr)";
 
 export default function AuditPage() {
   const { data: me, isLoading: meLoading } = useMe();
@@ -33,7 +35,7 @@ export default function AuditPage() {
 
   if (meLoading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96" />
       </div>
@@ -41,143 +43,166 @@ export default function AuditPage() {
   }
 
   if (!me || !canReadAudit(me.roles)) {
-    return (
-      <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised text-tertiary">
-          <Lock className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h2 className="text-base font-semibold text-primary">Access restricted</h2>
-        <p className="max-w-md text-sm text-secondary">
-          The audit log is visible to admin, sign-off, and read-only roles only.
-        </p>
-      </Card>
-    );
+    return <RestrictedState what="Reading the audit log requires an admin, sign-off or read-only role." />;
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-primary">Audit Log</h1>
-          <p className="text-sm text-secondary mt-0.5">Every consequential action on the platform, append-only.</p>
+    <>
+      <PageHeader
+        title="Audit Log"
+        description="Every consequential action on the platform, append-only."
+        actions={
+          <Link href="/audit/integrity">
+            <Button variant="secondary">
+              <ShieldCheck className="h-3.5 w-3.5" /> Verify Integrity
+            </Button>
+          </Link>
+        }
+      />
+
+      {/* The filter bar is a panel, not a floating row of controls: these
+          are the query you are running against the register, and they read
+          as a form you filled in. */}
+      <div className="flex flex-wrap items-end gap-3 border border-hairline bg-raised p-4">
+        <label className="flex flex-col gap-1.5">
+          <span className="label-mono">Severity</span>
+          <select
+            value={severity}
+            onChange={(e) => {
+              setSeverity(e.target.value as Severity | "");
+              setOffset(0);
+            }}
+            className="field field-mono min-w-40"
+          >
+            <option value="">All severities</option>
+            <option value="info">Info</option>
+            <option value="warning">Warning</option>
+            <option value="security_critical">Security critical</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="label-mono">event_type</span>
+          <input
+            value={eventType}
+            onChange={(e) => {
+              setEventType(e.target.value);
+              setOffset(0);
+            }}
+            placeholder="policy.checklist.*"
+            className="field field-mono min-w-48"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="label-mono">resource_type</span>
+          <input
+            value={resourceType}
+            onChange={(e) => {
+              setResourceType(e.target.value);
+              setOffset(0);
+            }}
+            placeholder="application"
+            className="field field-mono min-w-40"
+          />
+        </label>
+        <div className="ml-auto font-mono text-[10px] text-secondary">
+          {data ? `SHOWING ${offset + 1}–${offset + data.length}` : "…"}
         </div>
-        <Link href="/audit/integrity">
-          <Button variant="secondary" size="sm">
-            <ShieldCheck className="h-3.5 w-3.5" /> Verify Integrity
-          </Button>
-        </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={severity}
-          onChange={(e) => {
-            setSeverity(e.target.value as Severity | "");
-            setOffset(0);
-          }}
-          className="rounded-lg border border-hairline bg-raised px-3 py-1.5 text-xs text-primary outline-none focus:border-cyan"
-        >
-          <option value="">All severities</option>
-          <option value="info">Info</option>
-          <option value="warning">Warning</option>
-          <option value="security_critical">Security Critical</option>
-        </select>
-        <input
-          value={eventType}
-          onChange={(e) => {
-            setEventType(e.target.value);
-            setOffset(0);
-          }}
-          placeholder="event_type…"
-          className="rounded-lg border border-hairline bg-raised px-3 py-1.5 text-xs text-primary outline-none focus:border-cyan placeholder:text-tertiary"
-        />
-        <input
-          value={resourceType}
-          onChange={(e) => {
-            setResourceType(e.target.value);
-            setOffset(0);
-          }}
-          placeholder="resource_type…"
-          className="rounded-lg border border-hairline bg-raised px-3 py-1.5 text-xs text-primary outline-none focus:border-cyan placeholder:text-tertiary"
-        />
-      </div>
+      <Card>
+        <TableHead cols={COLS}>
+          <div>Seq</div>
+          <div>Event</div>
+          <div>Severity</div>
+          <div>Occurred</div>
+          <div>Actor</div>
+          <div>Resource</div>
+        </TableHead>
 
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-hairline text-left text-xs font-medium uppercase tracking-wide text-tertiary">
-                <th scope="col" className="px-5 py-3">Seq</th>
-                <th scope="col" className="px-5 py-3">Event</th>
-                <th scope="col" className="px-5 py-3">Severity</th>
-                <th scope="col" className="px-5 py-3">Occurred</th>
-                <th scope="col" className="px-5 py-3">Actor</th>
-                <th scope="col" className="px-5 py-3">Resource</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading &&
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="border-b border-hairline last:border-0">
-                    <td className="px-5 py-4" colSpan={6}>
-                      <Skeleton className="h-5 w-full" />
-                    </td>
-                  </tr>
-                ))}
-              {!isLoading && data?.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-16 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <ScrollText className="h-6 w-6 text-tertiary" strokeWidth={1.5} />
-                      <p className="text-sm text-tertiary">No matching audit events.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {data?.map((event, i) => (
-                <motion.tr
-                  key={event.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2, delay: i * 0.02 }}
-                  className="border-b border-hairline last:border-0 hover:bg-raised transition-colors"
+        {isLoading &&
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="border-b border-hairline px-4 py-3.5 last:border-b-0">
+              <Skeleton className="h-3.5 w-full" />
+            </div>
+          ))}
+
+        {!isLoading && data?.length === 0 && (
+          <div className="p-4">
+            <EmptyState
+              icon={ScrollText}
+              title="No matching audit events"
+              description="Nothing in the chain matches these filters. Clear them to see the whole register."
+            />
+          </div>
+        )}
+
+        {data?.map((event) => {
+          const tone = severityTone(event.severity);
+          const critical = event.severity === "security_critical";
+          return (
+            <TableRow
+              key={event.id}
+              cols={COLS}
+              mark={TONE_MARK[tone]}
+              tint={TONE_TINT[tone]}
+              href={`/audit/${event.id}`}
+              className="font-mono text-[11px]"
+            >
+              <Cell className="text-secondary tabular-nums">{event.sequence_number}</Cell>
+              <Cell label="Event" className={`truncate pr-3 ${critical ? "font-semibold text-primary" : "text-primary/85"}`}>
+                {event.event_type}
+              </Cell>
+              {/* Severity is redlined rather than pilled in the table: a
+                  pill per row would put 50 coloured boxes on screen and
+                  bury the three that matter. */}
+              <Cell label="Severity">
+                <span
+                  className={`text-[9px] tracking-[0.12em] uppercase ${TONE_TEXT[tone]} ${
+                    critical ? "underline decoration-2 underline-offset-[3px]" : ""
+                  }`}
                 >
-                  <td className="px-5 py-3 font-mono text-xs text-tertiary">{event.sequence_number}</td>
-                  <td className="px-5 py-3">
-                    <Link href={`/audit/${event.id}`} className="text-primary font-medium hover:underline">
-                      {event.event_type}
-                    </Link>
-                  </td>
-                  <td className="px-5 py-3">
-                    <StatusPill tone={severityTone(event.severity)} label={SEVERITY_LABEL[event.severity]} />
-                  </td>
-                  <td className="px-5 py-3 text-xs text-secondary">{new Date(event.occurred_at).toLocaleString()}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-secondary truncate max-w-[160px]">
-                    {event.actor_identity_id ?? "system"}
-                  </td>
-                  <td className="px-5 py-3 text-xs text-secondary">
-                    {event.resource_type ? `${event.resource_type}:${event.resource_id?.slice(0, 8)}` : "—"}
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  {SEVERITY_LABEL[event.severity]}
+                </span>
+              </Cell>
+              <Cell label="Occurred" className="text-secondary">
+                {new Date(event.occurred_at).toLocaleString(undefined, {
+                  month: "short",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
+              </Cell>
+              <Cell label="Actor" className="truncate text-primary/75">
+                {event.actor_identity_id ?? "system"}
+              </Cell>
+              <Cell label="Resource" className="truncate text-secondary">
+                {event.resource_type ? `${event.resource_type}/${event.resource_id?.slice(0, 8)}` : "—"}
+              </Cell>
+            </TableRow>
+          );
+        })}
+
+        {!isLoading && (data?.length ?? 0) > 0 && (
+          <TableNote>
+            Redlined rows denote security-critical entries. Entries cannot be edited or removed; corrections are
+            appended.
+          </TableNote>
+        )}
       </Card>
 
       <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
+        <Button variant="ghost" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
           Previous
         </Button>
         <Button
           variant="ghost"
-          size="sm"
           disabled={isFetching || (data?.length ?? 0) < PAGE_SIZE}
           onClick={() => setOffset(offset + PAGE_SIZE)}
         >
           Next
         </Button>
       </div>
-    </div>
+    </>
   );
 }

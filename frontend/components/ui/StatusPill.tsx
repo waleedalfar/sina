@@ -3,12 +3,18 @@ import { cn } from "@/lib/cn";
 import type { Tone } from "@/lib/status";
 import { LiveDot } from "./LiveDot";
 
+/*
+  The specimen label. Square, hairline box with a 4px spine on the left in
+  the tone colour, tracked uppercase mono. Never a soft rounded badge —
+  every status in this product is a record of a decision, and it is
+  labelled the way a sample is labelled.
+*/
 const toneClasses: Record<Tone, string> = {
-  success: "bg-success-bg text-success border-success/25",
-  warning: "bg-warning-bg text-warning border-warning/25",
-  danger: "bg-danger-bg text-danger border-danger/25",
-  neutral: "bg-neutral-bg text-neutral border-neutral/25",
-  info: "bg-info-bg text-info border-info/25",
+  success: "bg-success-bg text-success border-success",
+  warning: "bg-warning-bg text-warning border-warning",
+  danger: "bg-danger-bg text-danger border-danger",
+  neutral: "text-neutral border-strong",
+  info: "bg-info-bg text-info border-accent",
 };
 
 interface StatusPillProps {
@@ -25,12 +31,13 @@ export function StatusPill({ tone, label, icon: Icon, live, className }: StatusP
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap",
+        "inline-flex items-center gap-1.5 whitespace-nowrap border border-l-4 px-2.5 py-1",
+        "font-mono text-[9.5px] uppercase tracking-[0.16em]",
         toneClasses[tone],
         className,
       )}
     >
-      {live ? <LiveDot tone={tone} /> : Icon ? <Icon className="h-3.5 w-3.5" strokeWidth={2.5} /> : null}
+      {live ? <LiveDot tone={tone} /> : Icon ? <Icon className="h-3 w-3" strokeWidth={2.5} /> : null}
       {label}
     </span>
   );

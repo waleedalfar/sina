@@ -105,7 +105,7 @@ often cannot call out to one.
 
 ```
 backend/app/    identity · audit · models · governance · gateway · evaluation · dashboard
-frontend/       Next.js App Router console ("Aperture")
+frontend/       Next.js App Router console
 docs/           ARCHITECTURE.md
 infra/          Docker Compose, Keycloak realm
 ```

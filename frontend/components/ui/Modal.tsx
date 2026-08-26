@@ -1,19 +1,25 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "./Button";
 
+/*
+  A modal is a form you sign, so it is presented like one: a solid header
+  bar (ink for neutral work, brick red when the action is destructive), a
+  square body, and no rounding. The ESC affordance is written into the
+  header rather than left implicit.
+*/
 export function Modal({
   open,
   onClose,
   title,
+  tone = "neutral",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  tone?: "neutral" | "danger";
   children: ReactNode;
 }) {
   return (
@@ -25,23 +31,32 @@ export function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-[rgba(16,23,26,0.45)]"
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ type: "spring", stiffness: 400, damping: 32 }}
-            className="relative w-full max-w-md rounded-xl border border-hairline bg-overlay shadow-[var(--shadow-raised)]"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.16, ease: [0.4, 0, 0.2, 1] }}
+            className="relative w-full max-w-lg border border-rule bg-surface shadow-[var(--shadow-modal)]"
           >
-            <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
-              <h3 className="text-sm font-semibold text-primary">{title}</h3>
-              <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
+            <div
+              className={`flex items-center justify-between gap-3 px-4.5 py-3 font-mono text-[10px] uppercase tracking-[0.22em] ${
+                tone === "danger" ? "bg-danger text-inverted" : "bg-rule text-surface"
+              }`}
+            >
+              <span>{title}</span>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="opacity-60 transition-opacity hover:opacity-100"
+              >
+                ESC
+              </button>
             </div>
-            <div className="px-5 py-4">{children}</div>
+            <div className="flex flex-col gap-3.5 p-4.5">{children}</div>
           </motion.div>
         </div>
       )}

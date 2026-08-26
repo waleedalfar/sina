@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Lock, Plus, X, Users, History, ChevronDown } from "lucide-react";
+import { ChevronDown, History, Users, X } from "lucide-react";
 import { useIdentities, useRoles, useIdentityRoleMutations, useIdentityRoleHistory } from "@/lib/hooks/useIdentity";
 import { useMe } from "@/lib/hooks/useMe";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState, RestrictedState } from "@/components/ui/ResourceState";
 import { hasAnyRole, IDENTITY_ADMIN_ROLES, findConflictingKind } from "@/lib/auth/roles";
 import { ApiError } from "@/lib/api/client";
 import type { Identity, Role } from "@/types/api";
@@ -20,7 +19,7 @@ export default function IdentitiesPage() {
 
   if (meLoading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96" />
       </div>
@@ -28,81 +27,74 @@ export default function IdentitiesPage() {
   }
 
   if (!me || !hasAnyRole(me.roles, IDENTITY_ADMIN_ROLES)) {
-    return (
-      <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised text-tertiary">
-          <Lock className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h2 className="text-base font-semibold text-primary">Access restricted</h2>
-        <p className="max-w-md text-sm text-secondary">Identity and role administration requires the Platform Administrator role.</p>
-      </Card>
-    );
+    return <RestrictedState what="Identity and role administration requires the Platform Administrator role." />;
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-lg font-semibold text-primary">Identities</h1>
-        <p className="text-sm text-secondary mt-0.5">
-          Every identity on the platform, its roles, and the separation-of-duties matrix — a conflicting grant is
-          disabled here before the backend would ever reject it.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="Identities & Roles"
+        description="Roles arrive from hospital SSO; grants here are additive and audited. Conflicting roles are refused before they are attempted."
+      />
 
-      {isLoading &&
-        Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
+      {isLoading && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
 
       {!isLoading && identities?.length === 0 && (
-        <Card className="flex flex-col items-center gap-2 py-16 text-center">
-          <Users className="h-6 w-6 text-tertiary" strokeWidth={1.5} />
-          <p className="text-sm text-tertiary">No identities found.</p>
-        </Card>
+        <EmptyState icon={Users} title="No identities found" description="Identities appear here once they first sign in through hospital SSO." />
       )}
 
-      {identities?.map((identity, i) => (
-        <motion.div key={identity.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: i * 0.03 }}>
-          <IdentityCard identity={identity} allRoles={roles ?? []} />
-        </motion.div>
+      {identities?.map((identity) => (
+        <IdentityCard key={identity.id} identity={identity} allRoles={roles ?? []} />
       ))}
-    </div>
+    </>
   );
+}
+
+function initialsOf(identity: Identity) {
+  const source = identity.display_name ?? identity.email ?? identity.service_client_id ?? "?";
+  return source
+    .split(/[\s.@_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Role[] }) {
   const { grant, revoke } = useIdentityRoleMutations(identity.id);
-  const [selectedRoleId, setSelectedRoleId] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: history, isLoading: historyLoading } = useIdentityRoleHistory(identity.id, historyOpen);
 
   const heldRoleIds = new Set(identity.roles.map((r) => r.id));
   const heldKinds = identity.roles.map((r) => r.kind);
-  const availableRoles = allRoles.filter((r) => !heldRoleIds.has(r.id));
+  const grantable = allRoles.filter((r) => !heldRoleIds.has(r.id));
 
   const mutationError = [grant.error, revoke.error].find((e): e is Error => e instanceof Error);
   const errorMessage = mutationError instanceof ApiError ? mutationError.detail : mutationError?.message;
 
   return (
-    <Card>
-      <CardHeader>
-        <div>
-          <CardTitle>{identity.display_name ?? identity.email ?? identity.service_client_id ?? identity.id}</CardTitle>
-          <p className="text-xs text-tertiary font-mono mt-0.5">
-            {identity.type} · {identity.email ?? identity.service_client_id ?? identity.id}
-          </p>
+    <section className="border border-hairline bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3.5 border-b border-hairline bg-raised px-4 py-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-8.5 w-8.5 shrink-0 place-items-center bg-accent font-mono text-[11px] text-inverted">
+            {initialsOf(identity) || "?"}
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-semibold">
+              {identity.display_name ?? identity.email ?? identity.service_client_id ?? identity.id}
+            </div>
+            <div className="mt-0.5 truncate font-mono text-[10px] text-secondary">
+              {identity.email ?? identity.service_client_id ?? identity.id} · {identity.type}
+            </div>
+          </div>
         </div>
-        <StatusPill tone={identity.active ? "success" : "neutral"} label={identity.active ? "Active" : "Inactive"} />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {errorMessage && (
-          <div className="rounded-lg border border-danger/30 bg-danger-bg px-4 py-2.5 text-xs text-danger">{errorMessage}</div>
-        )}
 
-        <div className="flex flex-wrap gap-2">
-          {identity.roles.length === 0 && <span className="text-xs text-tertiary">No roles granted.</span>}
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill tone={identity.active ? "success" : "neutral"} label={identity.active ? "Active" : "Inactive"} />
           {identity.roles.map((role) => (
             <span
               key={role.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2.5 py-1 text-xs text-secondary"
+              className="inline-flex items-center gap-2 border border-success border-l-4 bg-success-bg px-2.5 py-1 font-mono text-[9.5px] tracking-[0.12em] text-success-ink uppercase"
             >
               {role.name}
               <button
@@ -110,45 +102,67 @@ function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Ro
                 disabled={revoke.isPending}
                 onClick={() => revoke.mutate(role.id)}
                 aria-label={`Revoke ${role.name}`}
-                className="text-tertiary hover:text-danger transition-colors"
+                className="text-danger transition-opacity hover:opacity-70 disabled:opacity-40"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
           ))}
         </div>
+      </div>
 
-        <div className="flex items-center gap-2 border-t border-hairline pt-3">
-          <select
-            value={selectedRoleId}
-            onChange={(e) => setSelectedRoleId(e.target.value)}
-            // `min-w-0` is load-bearing: a flex item defaults to
-            // `min-width: auto`, so without it this select refuses to
-            // shrink below the intrinsic width of its longest option
-            // ("… — conflicts with held signoff role") and pushes the
-            // Grant button off-screen on a phone.
-            className="min-w-0 flex-1 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-xs text-primary outline-none focus:border-cyan"
-          >
-            <option value="">Grant a role…</option>
-            {availableRoles.map((role) => {
-              const conflict = findConflictingKind(role.kind, heldKinds);
-              return (
-                <option key={role.id} value={role.id} disabled={!!conflict}>
-                  {role.name}
-                  {conflict ? ` — conflicts with held ${conflict} role` : ""}
-                </option>
-              );
-            })}
-          </select>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="shrink-0"
-            disabled={!selectedRoleId || grant.isPending}
-            onClick={() => grant.mutate(selectedRoleId, { onSuccess: () => setSelectedRoleId("") })}
-          >
-            <Plus className="h-3.5 w-3.5" /> Grant
-          </Button>
+      {errorMessage && (
+        <p className="border-b border-danger bg-danger-bg px-4 py-2.5 text-[12.5px] text-danger">{errorMessage}</p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4.5 p-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-2.5">
+          <div className="label-mono">Grantable roles</div>
+          {grantable.length === 0 && (
+            <p className="font-mono text-[10px] text-secondary">Every role is already held.</p>
+          )}
+          {/*
+            The separation-of-duties matrix is mirrored client-side so a
+            conflicting grant is refused, explained and visibly disabled
+            before it is ever attempted. The backend enforces the same rule
+            — this is not the check, it is the check made legible.
+          */}
+          {grantable.map((role) => {
+            const conflict = findConflictingKind(role.kind, heldKinds);
+            return (
+              <div
+                key={role.id}
+                className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border px-3 py-2.5 ${
+                  conflict ? "border-danger bg-danger-bg" : "border-strong"
+                }`}
+              >
+                <div className="min-w-0">
+                  <div
+                    className={`font-mono text-[10.5px] tracking-[0.1em] uppercase ${
+                      conflict ? "text-danger" : "text-primary"
+                    }`}
+                  >
+                    {role.name}
+                  </div>
+                  <div className={`mt-1 text-[12px] leading-snug ${conflict ? "text-danger" : "text-secondary"}`}>
+                    {conflict ? `Conflicts with a held ${conflict} role — separation of duties.` : `${role.kind} role`}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={!!conflict || grant.isPending}
+                  onClick={() => grant.mutate(role.id)}
+                  className={`border px-3 py-1.5 font-mono text-[9px] tracking-[0.14em] whitespace-nowrap uppercase transition-colors ${
+                    conflict
+                      ? "cursor-not-allowed border-danger text-danger"
+                      : "border-accent text-accent hover:bg-accent-bg disabled:opacity-50"
+                  }`}
+                >
+                  {conflict ? "Blocked · conflict" : "Grant"}
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {/* Revoked assignments were always kept in the database (a revoke
@@ -156,43 +170,55 @@ function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Ro
             them back, so "who held what, when" was only recoverable from
             the audit log. Collapsed by default and only fetched when
             opened — this is reference material, not the primary view. */}
-        <div className="border-t border-hairline pt-3">
-          <button
-            type="button"
-            onClick={() => setHistoryOpen((v) => !v)}
-            aria-expanded={historyOpen}
-            className="flex items-center gap-1.5 text-xs text-tertiary transition-colors hover:text-secondary"
-          >
-            <History className="h-3.5 w-3.5" />
-            Role history
-            <ChevronDown className={`h-3 w-3 transition-transform ${historyOpen ? "rotate-180" : ""}`} />
-          </button>
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="label-mono">Role history</div>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-expanded={historyOpen}
+              className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.14em] text-accent uppercase hover:underline"
+            >
+              <History className="h-3 w-3" />
+              {historyOpen ? "Hide" : "Show"}
+              <ChevronDown className={`h-3 w-3 transition-transform ${historyOpen ? "rotate-180" : ""}`} />
+            </button>
+          </div>
 
           {historyOpen && (
-            <div className="mt-3">
+            <>
               {historyLoading && <Skeleton className="h-16" />}
               {history && history.length === 0 && (
-                <p className="text-xs text-tertiary">No role assignments recorded.</p>
+                <p className="font-mono text-[10px] text-secondary">No role assignments recorded.</p>
               )}
-              {history && history.length > 0 && (
-                <ul className="divide-y divide-[var(--color-border-hairline)]">
-                  {history.map((a) => (
-                    <li key={a.assignment_id} className="flex items-center justify-between gap-3 py-2">
-                      <span className={`text-xs ${a.revoked_at ? "text-tertiary line-through" : "text-primary"}`}>
-                        {a.name}
-                      </span>
-                      <span className="text-[11px] text-tertiary text-right">
-                        granted {new Date(a.granted_at).toLocaleString()}
-                        {a.revoked_at && ` · revoked ${new Date(a.revoked_at).toLocaleString()}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+              {history?.map((a) => (
+                <div
+                  key={a.assignment_id}
+                  className="grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hairline py-2"
+                >
+                  <span className="font-mono text-[10px] text-secondary">
+                    {new Date(a.granted_at).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" })}
+                  </span>
+                  <span
+                    className={`truncate font-mono text-[10.5px] tracking-[0.08em] uppercase ${
+                      a.revoked_at ? "text-secondary line-through" : "text-primary/80"
+                    }`}
+                  >
+                    {a.name}
+                  </span>
+                  <span
+                    className={`font-mono text-[9px] tracking-[0.14em] uppercase ${
+                      a.revoked_at ? "text-danger" : "text-success"
+                    }`}
+                  >
+                    {a.revoked_at ? "Revoked" : "Held"}
+                  </span>
+                </div>
+              ))}
+            </>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

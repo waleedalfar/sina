@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import { CornerDownLeft, ShieldX, ShieldCheck, Send, Info } from "lucide-react";
+import { Info, Send } from "lucide-react";
 import { governanceApi } from "@/lib/api/governance";
 import { gatewayApi } from "@/lib/api/gateway";
 import { ApiError } from "@/lib/api/client";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { StatusPill } from "@/components/ui/StatusPill";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { Application, ChatCompletionResponse } from "@/types/api";
 
@@ -40,32 +38,27 @@ export default function PlaygroundPage() {
   const canSend = applicationId !== "" && prompt.trim() !== "" && !send.isPending;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold text-primary">Gateway Playground</h1>
-        <p className="mt-1 text-sm text-secondary">
-          Sends a real request through the inference gateway, subject to the same policy checklist
-          every production caller passes. Nothing here bypasses governance.
-        </p>
-      </header>
+    <>
+      <PageHeader
+        title="Gateway Playground"
+        description="Every request here passes the same policy checklist as production traffic and is written to the audit chain. Nothing here bypasses governance."
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Request</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="border border-hairline bg-surface">
+        <div className="panel-head">Request</div>
+        <div className="flex flex-col gap-4 p-4">
           {isLoading ? (
             <Skeleton className="h-10" />
           ) : (
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-secondary">Application</span>
+            <label className="flex flex-col gap-1.5">
+              <span className="label-mono">Application</span>
               <select
                 value={applicationId}
                 onChange={(e) => {
                   setApplicationId(e.target.value);
                   send.reset();
                 }}
-                className="w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary"
+                className="field field-mono"
               >
                 <option value="">Select an application…</option>
                 {applications?.map((a) => (
@@ -81,54 +74,62 @@ export default function PlaygroundPage() {
               checklist only serves staging/production, and knowing that up
               front is more useful than discovering it in a 403. */}
           {selected && !["staging", "production"].includes(selected.lifecycle_state) && (
-            <p className="flex items-start gap-2 rounded-lg border border-hairline bg-raised p-3 text-xs text-tertiary">
-              <Info aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p className="flex items-start gap-2.5 border border-warning border-l-4 bg-warning-bg p-3.5 text-[12.5px] leading-relaxed text-secondary">
+              <Info aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
               <span>
-                This application is in <strong className="text-secondary">{selected.lifecycle_state}</strong>.
-                The gateway only serves <strong className="text-secondary">staging</strong> and{" "}
-                <strong className="text-secondary">production</strong>, so this request will be denied
-                at checklist step 1 — which is worth seeing at least once.
+                This application is in{" "}
+                <span className="font-mono text-primary">{selected.lifecycle_state}</span>. The gateway serves only
+                staging and production, so this request will be denied at checklist step 1 — which is worth seeing at
+                least once.
               </span>
             </p>
           )}
 
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-secondary">Prompt</span>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
-              placeholder="Summarise this radiology report…"
-              className="w-full resize-y rounded-lg border border-hairline bg-raised px-3 py-2 font-mono text-sm text-primary placeholder:text-tertiary"
-            />
-          </label>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="label-mono">Prompt</span>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={7}
+                placeholder="Summarise the overnight vitals trend for bed 4B-12 and flag any deterioration signal."
+                className="field field-mono min-h-42 resize-y leading-relaxed"
+              />
+            </label>
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-tertiary">
-              Every request is audited, allowed or denied.
+            <div className="flex flex-col gap-1.5">
+              <span className="label-mono">Response</span>
+              <div aria-live="polite" aria-atomic="true" className="flex min-h-42 flex-1 flex-col">
+                {send.isSuccess ? (
+                  <CompletionPanel response={send.data} application={selected} />
+                ) : send.isError ? (
+                  <DenialPanel error={send.error} />
+                ) : (
+                  <div className="hatch flex flex-1 items-center justify-center border border-dashed border-strong p-4 text-center font-mono text-[10px] tracking-[0.18em] text-secondary uppercase">
+                    {send.isPending ? "Awaiting gateway…" : "No request sent"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <span className="font-mono text-[9.5px] text-secondary">
+              Allowed or denied, every request is written to the audit chain.
             </span>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!canSend}
-              onClick={() => send.mutate()}
-              className="gap-1.5"
-            >
-              {send.isPending ? "Sending…" : (<><Send className="h-3.5 w-3.5" /> Send</>)}
+            <Button variant="primary" disabled={!canSend} onClick={() => send.mutate()}>
+              {send.isPending ? (
+                "Sending…"
+              ) : (
+                <>
+                  <Send className="h-3.5 w-3.5" /> Send
+                </>
+              )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* The verdict is the whole point of this screen, and it arrives
-          without any focus change — so it is announced. A denial is
-          `alert` (assertive: the request was refused, that interrupts);
-          a completion is `status` (polite: it can wait for a pause). */}
-      <div aria-live="polite" aria-atomic="true">
-        {send.isSuccess && <CompletionPanel response={send.data} application={selected} />}
+        </div>
       </div>
-      {send.isError && <DenialPanel error={send.error} />}
-    </div>
+    </>
   );
 }
 
@@ -148,90 +149,71 @@ function DenialPanel({ error }: { error: Error }) {
   // which is a different kind of answer and shouldn't wear the same badge.
   const isPolicyDenial = status === 403;
 
-  const operationalLabel: Record<number, string> = {
-    429: "Rate limited",
-    413: "Prompt too large",
-    503: "Model not running",
-    502: "Inference failed",
+  const operational: Record<number, { label: string; note: string }> = {
+    429: {
+      label: "Rate limited",
+      note: "This application has spent its window. The limit is per application, not per caller.",
+    },
+    413: { label: "Prompt too large", note: "The prompt exceeds the configured ceiling; nothing was sent to the model." },
+    503: {
+      label: "Model not running",
+      note: "The gateway never starts a model on demand — an unstarted model is an operational state to fix, not something a request should silently trigger. Start the version from its model page and try again.",
+    },
+    502: { label: "Inference failed", note: "The model was reached but did not return a usable response." },
   };
 
+  const heading = isPolicyDenial ? "Denied by policy" : (operational[status]?.label ?? "Request failed");
+  const tone = isPolicyDenial ? "border-danger text-danger" : "border-warning text-warning";
+
   return (
-    <motion.div role="alert" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldX aria-hidden="true" className={`h-4 w-4 ${isPolicyDenial ? "text-rose-400" : "text-amber-400"}`} />
-            {isPolicyDenial ? "Denied by policy" : operationalLabel[status] ?? "Request failed"}
-            <StatusPill tone={isPolicyDenial ? "danger" : "warning"} label={String(status || "error")} />
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="font-mono text-sm text-primary">{api?.detail ?? error.message}</p>
-          {isPolicyDenial && (
-            <p className="text-xs text-tertiary">
-              The gateway refused this before any inference ran, and recorded a{" "}
-              <code className="text-secondary">gateway.request_denied</code> event naming the failed
-              check. It is visible now in the Audit log.
-            </p>
-          )}
-          {status === 503 && (
-            <p className="text-xs text-tertiary">
-              The gateway never starts a model on demand — an unstarted model is an operational
-              state to fix, not something a request should silently trigger. Start the model version
-              from its Models page and try again.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
+    <div role="alert" className={`flex flex-1 flex-col gap-2.5 border border-l-[5px] bg-surface p-4 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] tracking-[0.2em] uppercase">{heading}</span>
+        <span className="font-mono text-[9.5px] text-secondary">HTTP {status || "error"}</span>
+      </div>
+      <p className="font-mono text-[12.5px] leading-relaxed break-words text-primary">{api?.detail ?? error.message}</p>
+      {isPolicyDenial ? (
+        <p className="text-[12px] leading-relaxed text-secondary">
+          The gateway refused this before any inference ran and recorded a{" "}
+          <span className="font-mono">gateway.request_denied</span> event naming the failed check. It is in the audit
+          log now.
+        </p>
+      ) : (
+        operational[status] && <p className="text-[12px] leading-relaxed text-secondary">{operational[status].note}</p>
+      )}
+    </div>
   );
 }
 
-function CompletionPanel({
-  response,
-  application,
-}: {
-  response: ChatCompletionResponse;
-  application?: Application;
-}) {
+function CompletionPanel({ response, application }: { response: ChatCompletionResponse; application?: Application }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck aria-hidden="true" className="h-4 w-4 text-emerald-400" />
-            Allowed
-            <StatusPill tone="success" label="200" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-primary">
-            {response.choices[0]?.message.content}
-          </p>
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 border-t border-hairline pt-3 text-xs text-tertiary">
-            <div className="flex gap-1.5">
-              <dt>Model</dt>
-              <dd className="font-mono text-secondary">{response.model}</dd>
-            </div>
-            <div className="flex gap-1.5">
-              <dt>Tokens</dt>
-              <dd className="font-mono text-secondary">
-                {response.usage.prompt_tokens} in / {response.usage.completion_tokens} out
-              </dd>
-            </div>
-            {application && (
-              <div className="flex gap-1.5">
-                <dt>Via</dt>
-                <dd className="text-secondary">{application.name}</dd>
-              </div>
-            )}
-          </dl>
-          <p className="flex items-center gap-1.5 text-xs text-tertiary">
-            <CornerDownLeft aria-hidden="true" className="h-3 w-3" />
-            Passed all 7 checklist steps; recorded as <code className="text-secondary">gateway.request_served</code>.
-          </p>
-        </CardContent>
-      </Card>
-    </motion.div>
+    <div className="flex flex-1 flex-col gap-3 border border-hairline bg-raised p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] tracking-[0.2em] text-success uppercase">Allowed</span>
+        <span className="font-mono text-[9.5px] text-secondary">Checklist passed · 7 steps</span>
+      </div>
+      <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-primary">
+        {response.choices[0]?.message.content}
+      </p>
+      <dl className="flex flex-wrap gap-x-5 gap-y-1 border-t border-hairline pt-2.5 font-mono text-[9.5px] text-secondary">
+        <div className="flex gap-1.5">
+          <dt className="tracking-[0.14em] uppercase">Model</dt>
+          <dd className="text-primary/80">{response.model}</dd>
+        </div>
+        <div className="flex gap-1.5">
+          <dt className="tracking-[0.14em] uppercase">Tokens</dt>
+          <dd className="text-primary/80">
+            {response.usage.prompt_tokens} in / {response.usage.completion_tokens} out
+          </dd>
+        </div>
+        {application && (
+          <div className="flex gap-1.5">
+            <dt className="tracking-[0.14em] uppercase">Via</dt>
+            <dd className="text-primary/80">{application.name}</dd>
+          </div>
+        )}
+      </dl>
+      <p className="font-mono text-[9.5px] text-secondary">Recorded as gateway.request_served.</p>
+    </div>
   );
 }

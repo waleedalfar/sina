@@ -2,20 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import {
-  Plus,
-  Play,
-  Square,
-  ShieldCheck,
-  ShieldAlert,
-  CheckCircle2,
-  XCircle,
-  Clock3,
-  Boxes,
-  FlaskConical,
-  Pencil,
-} from "lucide-react";
+import { Boxes, FlaskConical, Pencil, Play, Plus, Square } from "lucide-react";
 import {
   useModel,
   useUpdateModel,
@@ -27,12 +14,13 @@ import {
 } from "@/lib/hooks/useModel";
 import { useTriggerEvaluationRun } from "@/lib/hooks/useEvaluation";
 import { useMe } from "@/lib/hooks/useMe";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { ResourceState } from "@/components/ui/ResourceState";
-import { Modal } from "@/components/ui/Modal";
+import { ResourceState, EmptyState } from "@/components/ui/ResourceState";
+import { DataRow } from "@/components/ui/DataList";
+import { TableNote } from "@/components/ui/Table";
 import {
   decisionTone,
   riskTone,
@@ -68,14 +56,14 @@ export default function ModelDetailPage({ params }: { params: Promise<{ modelId:
   const { modelId } = use(params);
   const { data: model, isLoading: modelLoading, error, refetch } = useModel(modelId);
   const updateModel = useUpdateModel(modelId);
-  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const { data: rows, isLoading: rowsLoading } = useModelDashboardRows(modelId);
   const { data: me } = useMe();
-  const canImport = me && hasAnyRole(me.roles, IMPORT_MODEL_VERSION_ROLES);
+  const canImport = !!me && hasAnyRole(me.roles, IMPORT_MODEL_VERSION_ROLES);
 
   if (modelLoading || rowsLoading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40" />
         <Skeleton className="h-40" />
@@ -85,76 +73,103 @@ export default function ModelDetailPage({ params }: { params: Promise<{ modelId:
 
   if (!model) {
     return (
-      <ResourceState
-        error={error}
-        resource="model"
-        backHref="/models"
-        backLabel="Back to Models"
-        onRetry={() => refetch()}
-      />
+      <ResourceState error={error} resource="model" backHref="/models" backLabel="Back to models" onRetry={() => refetch()} />
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-primary">{model.name}</h1>
-          <p className="text-sm text-secondary mt-1">{model.description ?? "No description recorded."}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Same role as importing a version and as creating the Model:
-              whoever can register a Model owns its metadata. Mirrored
-              client-side to hide the action, not to enforce it — the
-              backend requires ML Engineer independently. */}
-          {canImport && (
-            <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-3.5 w-3.5" /> Edit
-            </Button>
-          )}
-          {canImport && (
-            <Link href={`/models/${modelId}/import`}>
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" /> Import Version
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
+  const approvedCount = (rows ?? []).filter((r) => r.ai_governance_decision === "approved").length;
 
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit model">
-        <ModelEditForm
-          name={model.name}
-          description={model.description}
-          pending={updateModel.isPending}
-          error={
-            updateModel.error instanceof ApiError
-              ? updateModel.error.detail
-              : updateModel.error instanceof Error
-                ? updateModel.error.message
-                : null
-          }
-          onCancel={() => setEditOpen(false)}
-          onSubmit={(body) => updateModel.mutate(body, { onSuccess: () => setEditOpen(false) })}
-        />
-      </Modal>
+  return (
+    <>
+      <PageHeader
+        eyebrow={`Models / ${model.name}`}
+        title={model.name}
+        aside={
+          <>
+            <div className="mt-2.5 flex flex-wrap gap-2.5">
+              <span className="border border-hairline border-l-4 border-l-success bg-raised px-2.5 py-1 font-mono text-[10px] tracking-[0.18em] uppercase">
+                {rows?.length ?? 0} versions · {approvedCount} approved
+              </span>
+              <span className="border border-hairline px-2.5 py-1 font-mono text-[10px] tracking-[0.18em] text-warning uppercase">
+                Local weights
+              </span>
+            </div>
+
+            {editing ? (
+              <ModelEditForm
+                name={model.name}
+                description={model.description}
+                pending={updateModel.isPending}
+                error={
+                  updateModel.error instanceof ApiError
+                    ? updateModel.error.detail
+                    : updateModel.error instanceof Error
+                      ? updateModel.error.message
+                      : null
+                }
+                onCancel={() => setEditing(false)}
+                onSubmit={(body) => updateModel.mutate(body, { onSuccess: () => setEditing(false) })}
+              />
+            ) : (
+              <p className="mt-3 max-w-[70ch] text-[13.5px] leading-relaxed text-secondary">
+                {model.description ?? <span className="italic">No description recorded.</span>}
+              </p>
+            )}
+          </>
+        }
+        actions={
+          canImport && !editing ? (
+            <>
+              {/* Same role as importing a version and as creating the Model:
+                  whoever can register a Model owns its metadata. Mirrored
+                  client-side to hide the action, not to enforce it — the
+                  backend requires ML Engineer independently. */}
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
+              <Link href={`/models/${modelId}/import`}>
+                <Button variant="primary">
+                  <Plus className="h-3.5 w-3.5" /> Import version
+                </Button>
+              </Link>
+            </>
+          ) : undefined
+        }
+      />
 
       {rows && rows.length === 0 && (
-        <Card className="flex flex-col items-center gap-2 py-16 text-center">
-          <Boxes className="h-6 w-6 text-tertiary" strokeWidth={1.5} />
-          <p className="text-sm text-tertiary">No versions imported yet.</p>
-        </Card>
+        <EmptyState
+          icon={Boxes}
+          title="No versions imported yet"
+          description="A model with no version cannot back an application. Import a weights archive to start."
+          action={
+            canImport ? (
+              <Link href={`/models/${modelId}/import`}>
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3 w-3" /> Import version
+                </Button>
+              </Link>
+            ) : undefined
+          }
+        />
       )}
 
-      {rows?.map((row, i) => (
-        <motion.div key={row.version_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: i * 0.05 }}>
-          <VersionCard modelId={modelId} row={row} />
-        </motion.div>
+      {rows?.map((row) => (
+        <VersionPanel key={row.version_id} modelId={modelId} row={row} />
       ))}
-    </div>
+
+      {rows && rows.length > 0 && (
+        <TableNote className="px-0">
+          A version cannot be approved without evaluation evidence attached, and runtime controls stay disabled for a
+          version that did not clear the malware scan.
+        </TableNote>
+      )}
+    </>
   );
 }
 
+/** Editing happens in place, inside a teal-ringed panel, rather than in a
+ * modal: the thing being edited stays on screen and in context. */
 function ModelEditForm({
   name: initialName,
   description: initialDescription,
@@ -173,8 +188,7 @@ function ModelEditForm({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? "");
 
-  const changed =
-    name !== initialName || description !== (initialDescription ?? "");
+  const changed = name !== initialName || description !== (initialDescription ?? "");
 
   const build = () => {
     const body: { name?: string; description?: string | null } = {};
@@ -184,47 +198,45 @@ function ModelEditForm({
   };
 
   return (
-    <div>
-      {error && (
-        <div className="mb-3 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-xs text-danger">{error}</div>
-      )}
-      <div className="space-y-4">
-        <div>
-          <label className="text-xs text-tertiary">Name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-tertiary">Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-sm text-primary outline-none focus:border-cyan"
-          />
-        </div>
-        <p className="border-t border-hairline pt-3 text-[11px] text-tertiary">
-          Renaming is recorded in the audit trail. This name is what appears next to every governance approval
-          already recorded against this model&apos;s versions, so the previous value has to stay recoverable.
-          Imported versions themselves can&apos;t be edited at all.
-        </p>
-      </div>
-      <div className="mt-4 flex justify-end gap-2 border-t border-hairline pt-4">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+    <div className="mt-3.5 flex max-w-2xl flex-col gap-2.5 border border-accent bg-input p-3">
+      <div className="font-mono text-[9px] tracking-[0.2em] text-accent uppercase">Editing model</div>
+      {error && <p className="border border-danger border-l-4 bg-danger-bg px-3 py-2 text-[12px] text-danger">{error}</p>}
+      <label className="flex flex-col gap-1.5">
+        <span className="label-mono">Name</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} className="field" />
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className="label-mono">Description</span>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="field resize-y leading-relaxed"
+        />
+      </label>
+      <p className="font-mono text-[9.5px] leading-relaxed text-secondary">
+        Renaming is recorded in the audit trail. This name appears next to every governance approval already recorded
+        against this model&apos;s versions, so the previous value has to stay recoverable. Imported versions themselves
+        cannot be edited at all.
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant="primary" size="sm" disabled={pending || !changed || name.trim().length === 0} onClick={() => onSubmit(build())}>
-          {pending ? "Saving…" : "Save changes"}
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={pending || !changed || name.trim().length === 0}
+          onClick={() => onSubmit(build())}
+        >
+          {pending ? "Saving…" : "Save"}
         </Button>
       </div>
     </div>
   );
 }
 
-function VersionCard({ modelId, row }: { modelId: string; row: ModelDashboardRow }) {
+function VersionPanel({ modelId, row }: { modelId: string; row: ModelDashboardRow }) {
   const { data: full } = useModelVersionDetail(modelId, row.version_id);
   const { data: runtime } = useModelVersionRuntimeState(row.version_id);
   const { data: runs } = useEvaluationRuns(row.version_id);
@@ -233,11 +245,11 @@ function VersionCard({ modelId, row }: { modelId: string; row: ModelDashboardRow
   const triggerEval = useTriggerEvaluationRun(row.version_id);
   const [evidenceRunId, setEvidenceRunId] = useState("");
 
-  const canStartStop = me && hasAnyRole(me.roles, START_STOP_MODEL_ROLES);
-  const canSetRisk = me && hasAnyRole(me.roles, SET_MODEL_RISK_ROLES);
-  const canTriggerEval = me && hasAnyRole(me.roles, EVALUATION_TRIGGER_ROLES);
+  const canStartStop = !!me && hasAnyRole(me.roles, START_STOP_MODEL_ROLES);
+  const canSetRisk = !!me && hasAnyRole(me.roles, SET_MODEL_RISK_ROLES);
+  const canTriggerEval = !!me && hasAnyRole(me.roles, EVALUATION_TRIGGER_ROLES);
   const isImporter = full && me?.id === full.imported_by;
-  const canApprove = me && hasAnyRole(me.roles, RECORD_MODEL_APPROVAL_ROLES) && !isImporter && !row.ai_governance_decision;
+  const canApprove = !!me && hasAnyRole(me.roles, RECORD_MODEL_APPROVAL_ROLES) && !isImporter && !row.ai_governance_decision;
   const completeRuns = (runs ?? []).filter((r) => r.status === "complete");
   const latestRun = runs?.[0];
 
@@ -249,195 +261,207 @@ function VersionCard({ modelId, row }: { modelId: string; row: ModelDashboardRow
   );
   const mutationErrorMessage = mutationError instanceof ApiError ? mutationError.detail : mutationError?.message;
 
+  // The spine says whether this version may be used at all, which is the
+  // approval decision — not whether it happens to be running.
+  const spine =
+    row.ai_governance_decision === "approved"
+      ? "border-l-success"
+      : row.ai_governance_decision
+        ? "border-l-danger"
+        : "border-l-warning";
+
   return (
-    <Card>
-      <CardHeader>
+    <section className={`border border-l-4 border-hairline bg-surface ${spine}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline bg-raised px-4 py-3">
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-[15px] font-semibold">{row.version_label}</span>
+          <span className="font-mono text-[9.5px] tracking-[0.14em] text-secondary uppercase">
+            {full?.format ?? "gguf"}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill
+            tone={scanTone(full?.malware_scan_result ?? "pending")}
+            label={`Scan: ${full?.malware_scan_result ?? "pending"}`}
+          />
+          <StatusPill
+            tone={runtimeTone(row.runtime_status)}
+            label={RUNTIME_LABEL[row.runtime_status]}
+            live={row.runtime_status === "running"}
+          />
+          {row.ai_governance_decision ? (
+            <StatusPill tone={decisionTone(row.ai_governance_decision)} label={DECISION_LABEL[row.ai_governance_decision]} />
+          ) : (
+            <StatusPill tone="warning" label="Unapproved" />
+          )}
+          {runtime?.production_eligible && <StatusPill tone="success" label="Production eligible" />}
+        </div>
+      </div>
+
+      {mutationErrorMessage && (
+        <p className="border-b border-danger bg-danger-bg px-4 py-2.5 text-[12.5px] text-danger">{mutationErrorMessage}</p>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2">
+        <div className="border-b border-hairline lg:border-r lg:border-b-0">
+          <DataRow label="Artifact hash">{full?.file_hash ?? "…"}</DataRow>
+          <DataRow label="Size">{full ? formatBytes(full.file_size_bytes) : "…"}</DataRow>
+          <DataRow label="Imported by">{full?.imported_by ?? "…"}</DataRow>
+          <DataRow label="Imported at">{full ? new Date(full.imported_at).toLocaleString() : "…"}</DataRow>
+        </div>
+        {/* The two declared fields keep the brick spine they were entered
+            with on the import screen — the caveat travels with the value. */}
         <div>
-          <CardTitle className="font-mono">{row.version_label}</CardTitle>
-          <p className="text-xs text-tertiary">{full?.format ?? "gguf"}</p>
+          <DataRow label="Declared source" tone="danger" className="border-l-4 border-l-danger">
+            {full?.declared_source ?? "—"}
+          </DataRow>
+          <DataRow label="Declared license" tone="danger" className="border-l-4 border-l-danger">
+            {full?.declared_license ?? "—"}
+          </DataRow>
+          <DataRow label="Known limits">{full?.known_limitations ?? "—"}</DataRow>
+          <DataRow label="Used by">{row.applications.length > 0 ? row.applications.join(", ") : "—"}</DataRow>
         </div>
-        <div className="flex items-center gap-2">
-          <StatusPill tone={scanTone(full?.malware_scan_result ?? "pending")} label={`Scan: ${full?.malware_scan_result ?? "pending"}`} icon={full?.malware_scan_result === "positive" ? ShieldAlert : undefined} />
-          <StatusPill tone={runtimeTone(row.runtime_status)} label={RUNTIME_LABEL[row.runtime_status]} live={row.runtime_status === "running"} />
-          {runtime?.production_eligible && <StatusPill tone="success" label="Production Eligible" icon={ShieldCheck} />}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[9.5px] text-secondary">
+          {runtime?.last_started_at && <span>Started {new Date(runtime.last_started_at).toLocaleString()}</span>}
+          {runtime?.memory_used_mb != null && <span>{runtime.memory_used_mb} MB</span>}
+          {runtime?.process_error && <span className="text-danger">{runtime.process_error}</span>}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {mutationErrorMessage && (
-          <div className="rounded-lg border border-danger/30 bg-danger-bg px-4 py-2.5 text-xs text-danger">
-            {mutationErrorMessage}
+        {canStartStop &&
+          (isRunning ? (
+            <Button variant="secondary" size="sm" disabled={stop.isPending} onClick={() => stop.mutate()}>
+              <Square className="h-3 w-3" /> Stop
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={start.isPending || !isClean}
+              title={!isClean ? "Blocked: this version did not pass the malware scan" : undefined}
+              onClick={() => start.mutate()}
+            >
+              <Play className="h-3 w-3" /> Start
+            </Button>
+          ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="label-mono">Risk classification</span>
+          <StatusPill tone={riskTone(row.risk_classification)} label={row.risk_classification ?? "Unclassified"} />
+        </div>
+        {canSetRisk && (
+          <div role="group" aria-label="Set risk classification" className="inline-flex border border-strong">
+            {(["low", "moderate", "high"] as RiskClassification[]).map((level) => (
+              <button
+                key={level}
+                type="button"
+                aria-pressed={row.risk_classification === level}
+                disabled={setRiskClassification.isPending}
+                onClick={() => setRiskClassification.mutate(level)}
+                className={`px-3 py-1.5 font-mono text-[9.5px] tracking-[0.14em] uppercase transition-colors ${
+                  row.risk_classification === level ? "bg-rule text-surface" : "text-secondary hover:text-primary"
+                }`}
+              >
+                {level}
+              </button>
+            ))}
           </div>
         )}
+      </div>
 
-        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 text-sm">
-          <Detail label="File hash" value={full?.file_hash} mono />
-          <Detail label="Size" value={full ? formatBytes(full.file_size_bytes) : undefined} />
-          <Detail label="Declared source" value={full?.declared_source ?? "—"} />
-          <Detail label="Declared license" value={full?.declared_license ?? "—"} />
-          <Detail label="Imported by" value={full?.imported_by} mono />
-          <Detail label="Imported at" value={full ? new Date(full.imported_at).toLocaleString() : undefined} />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="label-mono">Evaluation</span>
+          {row.evaluation_summary && Object.keys(row.evaluation_summary).length > 0 ? (
+            <CategoryDots summary={row.evaluation_summary} href={latestRun ? `/evaluations/${latestRun.id}` : undefined} />
+          ) : (
+            <span className="font-mono text-[9.5px] tracking-[0.12em] text-secondary uppercase">No runs yet</span>
+          )}
         </div>
-        {full?.known_limitations && (
-          <p className="text-xs text-secondary border-l-2 border-hairline pl-3">{full.known_limitations}</p>
+        {canTriggerEval && (
+          <Button variant="secondary" size="sm" disabled={triggerEval.isPending} onClick={() => triggerEval.mutate()}>
+            <FlaskConical className="h-3 w-3" />
+            {triggerEval.isPending ? "Running… (a couple of minutes)" : "Run evaluation"}
+          </Button>
         )}
+      </div>
+      {triggerEval.error instanceof Error && (
+        <p className="border-t border-hairline px-4 py-2.5 text-[12px] text-danger">
+          {triggerEval.error instanceof ApiError ? triggerEval.error.detail : triggerEval.error.message}
+        </p>
+      )}
 
-        <div className="flex items-center justify-between border-t border-hairline pt-4">
-          <div className="flex items-center gap-4 text-xs text-tertiary">
-            {runtime?.last_started_at && <span>Started {new Date(runtime.last_started_at).toLocaleString()}</span>}
-            {runtime?.memory_used_mb != null && <span>{runtime.memory_used_mb} MB</span>}
-            {runtime?.process_error && <span className="text-danger">{runtime.process_error}</span>}
-          </div>
-          {canStartStop && (
-            <div className="flex items-center gap-2">
-              {isRunning ? (
-                <Button variant="secondary" size="sm" disabled={stop.isPending} onClick={() => stop.mutate()}>
-                  <Square className="h-3.5 w-3.5" /> Stop
-                </Button>
-              ) : (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={start.isPending || !isClean}
-                  title={!isClean ? "Blocked: this version did not pass the malware scan" : undefined}
-                  onClick={() => start.mutate()}
-                >
-                  <Play className="h-3.5 w-3.5" /> Start
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-tertiary">Risk classification</span>
-            <StatusPill tone={riskTone(row.risk_classification)} label={row.risk_classification ?? "Unclassified"} />
-          </div>
-          {canSetRisk && (
-            <div className="flex items-center gap-1 rounded-lg border border-hairline bg-raised p-0.5">
-              {(["low", "moderate", "high"] as RiskClassification[]).map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  disabled={setRiskClassification.isPending}
-                  onClick={() => setRiskClassification.mutate(level)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors duration-150 ${
-                    row.risk_classification === level ? "bg-cyan/15 text-cyan" : "text-tertiary hover:text-secondary"
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-tertiary">Evaluation</span>
-            {row.evaluation_summary && Object.keys(row.evaluation_summary).length > 0 ? (
-              latestRun ? (
-                <Link href={`/evaluations/${latestRun.id}`} className="flex gap-1.5 hover:underline">
-                  {Object.entries(row.evaluation_summary).map(([cat, passed]) => (
-                    <span key={cat} className="inline-flex items-center gap-1 text-xs text-secondary">
-                      <span className={`h-2 w-2 rounded-full ${passed ? "bg-success" : "bg-danger"}`} />
-                      {cat.replace("_", " ")}
-                    </span>
-                  ))}
-                </Link>
-              ) : (
-                <div className="flex gap-1.5">
-                  {Object.entries(row.evaluation_summary).map(([cat, passed]) => (
-                    <span key={cat} className="inline-flex items-center gap-1 text-xs text-secondary">
-                      <span className={`h-2 w-2 rounded-full ${passed ? "bg-success" : "bg-danger"}`} />
-                      {cat.replace("_", " ")}
-                    </span>
-                  ))}
-                </div>
-              )
-            ) : (
-              <span className="text-xs text-tertiary">No runs yet</span>
-            )}
-            {canTriggerEval && (
-              <Button variant="ghost" size="sm" disabled={triggerEval.isPending} onClick={() => triggerEval.mutate()}>
-                <FlaskConical className="h-3.5 w-3.5" /> {triggerEval.isPending ? "Running… (can take a couple minutes)" : "Run Evaluation"}
+      {canApprove && (
+        <div className="flex flex-wrap items-center gap-2.5 border-t border-hairline bg-raised px-4 py-3">
+          <span className="label-mono">AI governance decision</span>
+          {completeRuns.length === 0 ? (
+            <p className="font-mono text-[10px] text-secondary">
+              No completed evaluation run yet — required as evidence before a decision can be recorded.
+            </p>
+          ) : (
+            <>
+              <select
+                value={evidenceRunId}
+                onChange={(e) => setEvidenceRunId(e.target.value)}
+                className="field field-mono w-auto py-1.5"
+              >
+                <option value="">Evidence run…</option>
+                {completeRuns.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {new Date(r.triggered_at).toLocaleDateString()} — {r.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="border-success text-success-ink"
+                disabled={!evidenceRunId || recordApproval.isPending}
+                onClick={() => recordApproval.mutate({ decision: "approved" as ApprovalDecision, evidenceRunId })}
+              >
+                Approve
               </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-tertiary">AI Governance</span>
-            {row.ai_governance_decision ? (
-              <StatusPill tone={decisionTone(row.ai_governance_decision)} label={DECISION_LABEL[row.ai_governance_decision]} />
-            ) : (
-              <StatusPill tone="neutral" label="Pending" icon={Clock3} />
-            )}
-          </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="border-danger text-danger"
+                disabled={!evidenceRunId || recordApproval.isPending}
+                onClick={() => recordApproval.mutate({ decision: "rejected" as ApprovalDecision, evidenceRunId })}
+              >
+                Reject
+              </Button>
+            </>
+          )}
         </div>
-        {triggerEval.error instanceof Error && (
-          <p className="text-xs text-danger">
-            {triggerEval.error instanceof ApiError ? triggerEval.error.detail : triggerEval.error.message}
-          </p>
-        )}
-
-        {canApprove && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
-            {completeRuns.length === 0 ? (
-              <p className="text-xs text-tertiary">No completed evaluation run yet — required as evidence before recording a decision.</p>
-            ) : (
-              <>
-                <select
-                  value={evidenceRunId}
-                  onChange={(e) => setEvidenceRunId(e.target.value)}
-                  className="rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-xs text-primary outline-none focus:border-cyan"
-                >
-                  <option value="">Evidence run…</option>
-                  {completeRuns.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {new Date(r.triggered_at).toLocaleDateString()} — {r.id.slice(0, 8)}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={!evidenceRunId || recordApproval.isPending}
-                  onClick={() => recordApproval.mutate({ decision: "approved" as ApprovalDecision, evidenceRunId })}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-success" /> Approve
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={!evidenceRunId || recordApproval.isPending}
-                  onClick={() => recordApproval.mutate({ decision: "rejected" as ApprovalDecision, evidenceRunId })}
-                >
-                  <XCircle className="h-3.5 w-3.5 text-danger" /> Reject
-                </Button>
-              </>
-            )}
-          </div>
-        )}
-
-        {row.applications.length > 0 && (
-          <div className="border-t border-hairline pt-4">
-            <span className="text-xs text-tertiary">Used by</span>
-            <p className="text-xs text-secondary mt-1">{row.applications.join(", ")}</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </section>
   );
 }
 
-function Detail({ label, value, mono }: { label: string; value: string | undefined; mono?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-xs text-tertiary">{label}</span>
-      {value === undefined ? (
-        <Skeleton className="h-4 w-24" />
-      ) : (
-        <span className={`text-xs text-right text-primary ${mono ? "font-mono truncate max-w-[220px]" : ""}`}>{value}</span>
-      )}
-    </div>
+function CategoryDots({ summary, href }: { summary: Record<string, boolean>; href?: string }) {
+  const dots = (
+    <span className="flex flex-wrap gap-x-3 gap-y-1">
+      {Object.entries(summary).map(([cat, passed]) => (
+        <span
+          key={cat}
+          className={`inline-flex items-center gap-1.5 font-mono text-[9.5px] tracking-[0.1em] uppercase ${
+            passed ? "text-success" : "text-danger"
+          }`}
+        >
+          <span className={`h-1.5 w-1.5 ${passed ? "bg-success" : "bg-danger"}`} />
+          {cat.replace(/_/g, " ")}
+        </span>
+      ))}
+    </span>
+  );
+  return href ? (
+    <Link href={href} className="hover:underline">
+      {dots}
+    </Link>
+  ) : (
+    dots
   );
 }
