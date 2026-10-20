@@ -90,12 +90,10 @@ What it is not:
   pattern matching, not a model.
 - Not clinically validated. No real patient data was used anywhere in
   development, and none should be without your own governance process.
-- Accessibility and responsive layout are unverified. The skip link, list
-  semantics on the lifecycle rack, live regions on result surfaces and a
-  focus-trapped mobile nav are all in place. An earlier version of the
-  console passed a small-viewport check and a screen-reader pass, but it was
-  redesigned afterwards and neither has been repeated against the current
-  markup.
+- The console works at phone width, but hasn't been tested with a screen
+  reader since its redesign. The skip link, list semantics on the lifecycle
+  rack, live regions on result surfaces and a focus-trapped mobile nav are
+  all in place.
 
 [`SECURITY.md`](./SECURITY.md) lists the known gaps.
 

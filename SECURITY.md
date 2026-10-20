@@ -119,7 +119,10 @@ Where the safe answer and the convenient answer differ, the code takes the
 safe one, and each has a test:
 
 - A malware scanner that cannot be reached **refuses the import**. "Could
-  not scan" is never read as "clean".
+  not scan" is never read as "clean". The same goes for a scan that stops
+  partway, and for an artifact larger than the scanner reads in full
+  (100 MiB, ClamAV's default stream limit), which is refused before it is
+  written.
 - A model artifact whose hash no longer matches what was recorded at import
   **refuses to start**, as does one whose file has been deleted.
 - The gateway **never lazily starts a model**. An unstarted model is an
@@ -163,12 +166,13 @@ admits its edges.
 - **Tamper evidence is not tamper prevention** at the database-administrator
   level. See Audit above.
 - **No formal threat model or third-party penetration test** has been done.
-- **The console's accessibility and responsive layout are unverified.** The
-  structural work is in place: a skip link, list semantics on the lifecycle
-  rack, live regions on result surfaces, a focus-trapped mobile nav. An
-  earlier version of the console did pass a 430px responsive check and a
-  VoiceOver pass, but the interface was redesigned afterwards and the markup
-  changed substantially. Neither pass has been repeated. Treat both as
+- **The console has not been tested with a screen reader since its
+  redesign.** The structural work is in place and checked: a skip link,
+  one `h1` and `main` per page, list semantics on the lifecycle rack, live
+  regions on result surfaces, a focus-trapped mobile nav, and named
+  controls throughout. Every page also passes a 430px responsive check as
+  each role. What is announced, and in what order, has not been heard by
+  anyone using VoiceOver or similar on the current markup. Treat that as
   outstanding, not as polish.
 - **This is not a compliance certification.** It implements technical
   controls that contribute to HIPAA/GDPR/EU-AI-Act-shaped requirements. It
