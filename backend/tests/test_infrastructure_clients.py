@@ -88,6 +88,22 @@ async def test_an_empty_clamd_response_is_not_treated_as_clean(monkeypatch):
         await scan_bytes("clamav", 3310, b"payload")
 
 
+async def test_clamd_dropping_the_connection_mid_stream_is_not_clean(monkeypatch):
+    """What clamd does when StreamMaxLength is hit. Found live: the
+    BrokenPipeError escaped as an unhandled 500."""
+
+    class _DroppingWriter(_FakeWriter):
+        async def drain(self):
+            raise BrokenPipeError(32, "Broken pipe")
+
+        async def wait_closed(self):
+            raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(asyncio, "open_connection", _fake_connection(b"", _DroppingWriter()))
+    with pytest.raises(ScanUnavailable):
+        await scan_bytes("clamav", 3310, b"payload")
+
+
 async def test_the_stream_is_chunked_and_terminated(monkeypatch):
     """A missing zero-length terminator leaves clamd waiting forever."""
     writer = _FakeWriter()

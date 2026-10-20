@@ -137,6 +137,39 @@ async def test_import_is_refused_when_the_scanner_is_unreachable(
     assert "refused" in r.text.lower()
 
 
+def _stored_artifacts():
+    import os
+
+    from app.core.config import settings
+
+    return set(os.listdir(settings.model_storage_dir)) if os.path.isdir(settings.model_storage_dir) else set()
+
+
+async def test_a_refused_scan_leaves_no_artifact_behind(client, as_role, stub_scanner_down):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    before = _stored_artifacts()
+    await _import(client, model["id"], content=b"anything")
+    assert _stored_artifacts() == before
+
+
+async def test_an_artifact_larger_than_the_scanner_reads_is_413(
+    client, as_role, stub_clean_scan, monkeypatch
+):
+    """The scanner can't vouch for bytes it never read, so the ceiling is
+    enforced before writing or scanning, not left to clamd."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "model_max_upload_bytes", 8)
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    before = _stored_artifacts()
+
+    r = await _import(client, model["id"], content=b"nine bytes")
+    assert r.status_code == 413, r.text
+    assert _stored_artifacts() == before
+
+
 async def test_importing_requires_the_ml_engineer_role(client, as_role, stub_clean_scan):
     await as_role("ML Engineer")
     model = await _create_model(client)

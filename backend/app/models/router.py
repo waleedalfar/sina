@@ -234,6 +234,14 @@ async def import_model_version(
     # local artifacts, not appropriate as-is for large multi-GB models.
     content = await file.read()
     size = len(content)
+    if size > settings.model_max_upload_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"artifact is {size} bytes; the malware scanner reads at most "
+                f"{settings.model_max_upload_bytes}, so it cannot be verified clean"
+            ),
+        )
     file_hash = await asyncio.to_thread(_write_and_hash_sync, dest_path, content)
 
     try:
@@ -241,6 +249,9 @@ async def import_model_version(
     except ScanUnavailable as exc:
         os.remove(dest_path)
         raise HTTPException(status_code=502, detail=f"malware scan unavailable, import refused: {exc}") from exc
+    except BaseException:
+        os.remove(dest_path)
+        raise
 
     scan_result = MalwareScanResult.clean.value if is_clean else MalwareScanResult.positive.value
 

@@ -7,6 +7,7 @@ decision (hard block, no override).
 """
 
 import asyncio
+import contextlib
 
 
 class ScanUnavailable(Exception):
@@ -30,9 +31,15 @@ async def scan_bytes(host: str, port: int, data: bytes, chunk_size: int = 8192) 
         writer.write((0).to_bytes(4, "big"))
         await writer.drain()
         response = await reader.read(4096)
+    except OSError as exc:
+        # clamd drops the connection mid-stream when a limit such as
+        # StreamMaxLength is hit. No verdict was reached, so this is
+        # "couldn't scan", never "clean".
+        raise ScanUnavailable(f"clamd closed the connection mid-scan: {exc}") from exc
     finally:
         writer.close()
-        await writer.wait_closed()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
     text = response.decode(errors="replace").strip("\x00").strip()
     if not text:

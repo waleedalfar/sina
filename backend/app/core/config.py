@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     clamav_port: int = 3310
     ollama_base_url: str = "http://ollama:11434"
     model_storage_dir: str = "/models"
+    # Pinned to clamd's default StreamMaxLength: an artifact the scanner
+    # can't fully read can't be called clean. See models.md.
+    model_max_upload_bytes: int = 100 * 1024 * 1024
 
     # gateway module — see gateway.md and ADR-0005.
     redis_url: str = "redis://redis:6379/0"
