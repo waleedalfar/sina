@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { cn } from "@/lib/cn";
 import { LIFECYCLE_LABEL } from "@/lib/status";
 import type { LifecycleState } from "@/types/api";
@@ -141,6 +143,18 @@ export function LifecycleStepper({
   const onBranch = state === "suspended" || state === "retired";
   const total = MAIN_PATH.length + BRANCH.length;
 
+  // On a narrow screen the rack opens scrolled to Draft, which put the
+  // current state of a Production application off-screen. Centre it
+  // instead. scrollLeft rather than scrollIntoView, which would also move
+  // the page vertically.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const current = scroller?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!scroller || !current) return;
+    scroller.scrollLeft = current.offsetLeft - (scroller.clientWidth - current.offsetWidth) / 2;
+  }, [state]);
+
   const mainFill = (step: LifecycleState, i: number): Fill => {
     if (step === state) return "current";
     if (available.includes(step)) return "armed";
@@ -163,7 +177,12 @@ export function LifecycleStepper({
     // Scrolls horizontally rather than compressing. The signature component
     // of this console is the lifecycle, and a squashed rack that drops its
     // labels communicates less than one you swipe.
-    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+    //
+    // `relative` is load-bearing: each tube's sr-only label is absolutely
+    // positioned, and without a positioned ancestor here those labels
+    // escape the scroller's clipping and widen the whole page (found at
+    // 430px: the page scrolled 450px sideways).
+    <div ref={scrollerRef} className="relative -mx-1 overflow-x-auto px-1 pb-1">
       <ol aria-label="Application lifecycle" className="flex min-w-max items-start gap-2.5 lg:min-w-0">
         {MAIN_PATH.map((step, i) => (
           <Tube key={step} state={step} fill={mainFill(step, i)} note={noteFor(step, mainFill(step, i))} position={i + 1} total={total} />

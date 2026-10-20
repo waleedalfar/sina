@@ -102,7 +102,9 @@ function IdentityCard({ identity, allRoles }: { identity: Identity; allRoles: Ro
                 disabled={revoke.isPending}
                 onClick={() => revoke.mutate(role.id)}
                 aria-label={`Revoke ${role.name}`}
-                className="text-danger transition-opacity hover:opacity-70 disabled:opacity-40"
+                // Padding plus an equal negative margin: a 24px hit area
+                // (WCAG 2.5.8) around a 12px glyph, without growing the chip.
+                className="-m-1.5 inline-flex p-1.5 text-danger transition-opacity hover:opacity-70 disabled:opacity-40"
               >
                 <X className="h-3 w-3" />
               </button>

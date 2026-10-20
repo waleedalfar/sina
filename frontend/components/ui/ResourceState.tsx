@@ -70,7 +70,9 @@ export function ResourceState({
         <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <p className="font-mono text-[10px] uppercase tracking-[0.2em]">{kind}</p>
-      <h2 className="text-[15px] font-semibold text-primary">{title}</h2>
+      {/* h1: like RestrictedState, every caller returns this in place of
+          the whole page. */}
+      <h1 className="text-[15px] font-semibold text-primary">{title}</h1>
       <p className="max-w-[42ch] text-[12.5px] leading-relaxed text-secondary">{description}</p>
       <div className="mt-1 flex items-center gap-2">
         <Link href={backHref}>
@@ -132,7 +134,9 @@ export function RestrictedState({ what }: { what: string }) {
         <Ban className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <p className="font-mono text-[10px] uppercase tracking-[0.2em]">Forbidden</p>
-      <h2 className="text-[15px] font-semibold text-primary">Your roles do not permit this</h2>
+      {/* h1, not h2: every caller returns this in place of the whole page,
+          PageHeader included, so otherwise the page has no h1 at all. */}
+      <h1 className="text-[15px] font-semibold text-primary">Your roles do not permit this</h1>
       <p className="max-w-[42ch] text-[12.5px] leading-relaxed text-secondary">
         {what} The attempt itself was recorded in the audit log.
       </p>

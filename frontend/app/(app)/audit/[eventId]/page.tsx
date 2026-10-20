@@ -10,26 +10,43 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DataRow } from "@/components/ui/DataList";
-import { RestrictedState } from "@/components/ui/ResourceState";
+import { ResourceState, RestrictedState } from "@/components/ui/ResourceState";
 import { severityTone, SEVERITY_LABEL } from "@/lib/status";
 import { canReadAudit } from "@/lib/auth/roles";
 
 export default function AuditEventDetailPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
   const { data: me, isLoading: meLoading } = useMe();
-  const { data: event, isLoading } = useAuditEvent(eventId);
+  const { data: event, isLoading, error, refetch } = useAuditEvent(eventId);
 
-  if (meLoading || isLoading || !event) {
-    return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64" />
-      </div>
-    );
-  }
+  const skeleton = (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-64" />
+    </div>
+  );
+
+  // Role check before waiting on the event: for a role without audit
+  // access the fetch is a 403, `event` never arrives, and checking it
+  // first left the page on a skeleton forever.
+  if (meLoading) return skeleton;
 
   if (!me || !canReadAudit(me.roles)) {
     return <RestrictedState what="Reading audit events requires an admin, sign-off or read-only role." />;
+  }
+
+  if (isLoading) return skeleton;
+
+  if (!event) {
+    return (
+      <ResourceState
+        error={error}
+        resource="audit event"
+        backHref="/audit"
+        backLabel="Back to audit log"
+        onRetry={() => refetch()}
+      />
+    );
   }
 
   return (
