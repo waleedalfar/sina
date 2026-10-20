@@ -182,7 +182,7 @@ admits its edges.
 
 ## How this was verified
 
-174 backend tests at 90% line coverage, plus 47 frontend tests over the
+182 backend tests at 90% line coverage, plus 47 frontend tests over the
 logic that encodes rules. Both suites run against real infrastructure: a
 real Postgres, so the audit triggers and the privilege revocation are the
 ones that ship, rather than a substitute that behaves differently.
