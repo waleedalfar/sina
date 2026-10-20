@@ -370,3 +370,74 @@ async def test_unauthenticated_requests_are_rejected(client, servable_applicatio
     client.anonymous()
     r = await _call(client, servable_application.id)
     assert r.status_code == 401, r.text
+
+
+# --- Generation bound ------------------------------------------------
+# The output-char cap truncates after generation finishes, so it can't stop
+# a runaway model. These pin the token bound that can.
+
+
+async def test_a_request_without_max_tokens_still_sends_a_bound(
+    client, servable_application, make_identity, roles, stub_ollama
+):
+    from app.core.config import settings
+
+    caller = await make_identity("Clinician")
+    client.act_as(caller, [roles["Clinician"]])
+    r = await _call(client, servable_application.id)
+    assert r.status_code == 200, r.text
+    assert stub_ollama[0]["max_tokens"] == settings.gateway_default_max_tokens
+
+
+async def test_max_tokens_above_the_ceiling_is_clamped(
+    client, servable_application, make_identity, roles, stub_ollama
+):
+    from app.core.config import settings
+
+    caller = await make_identity("Clinician")
+    client.act_as(caller, [roles["Clinician"]])
+    r = await _call(client, servable_application.id, max_tokens=10_000_000)
+    assert r.status_code == 200, r.text
+    assert stub_ollama[0]["max_tokens"] == settings.gateway_max_tokens_ceiling
+
+
+async def test_max_tokens_within_the_ceiling_is_respected(
+    client, servable_application, make_identity, roles, stub_ollama
+):
+    caller = await make_identity("Clinician")
+    client.act_as(caller, [roles["Clinician"]])
+    r = await _call(client, servable_application.id, max_tokens=32)
+    assert r.status_code == 200, r.text
+    assert stub_ollama[0]["max_tokens"] == 32
+
+
+async def test_non_positive_max_tokens_is_422(
+    client, servable_application, make_identity, roles, stub_ollama
+):
+    caller = await make_identity("Clinician")
+    client.act_as(caller, [roles["Clinician"]])
+    for value in (0, -1):
+        r = await _call(client, servable_application.id, max_tokens=value)
+        assert r.status_code == 422, r.text
+    assert not stub_ollama
+
+
+async def test_a_truncated_answer_reports_finish_reason_length(
+    client, servable_application, make_identity, roles, monkeypatch
+):
+    from app.gateway import router as gateway_router
+
+    async def _chat(model, messages, max_tokens=None):
+        return {
+            "message": {"role": "assistant", "content": "cut off mid"},
+            "done_reason": "length",
+            "prompt_eval_count": 3,
+            "eval_count": max_tokens,
+        }
+
+    monkeypatch.setattr(gateway_router._ollama, "chat", _chat)
+    caller = await make_identity("Clinician")
+    client.act_as(caller, [roles["Clinician"]])
+    r = await _call(client, servable_application.id, max_tokens=4)
+    assert r.status_code == 200, r.text
+    assert r.json()["choices"][0]["finish_reason"] == "length"

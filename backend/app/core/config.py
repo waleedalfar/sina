@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     gateway_max_prompt_chars: int = 20000
     gateway_max_output_chars: int = 20000
+    # Generation bound — the output-char cap above truncates *after* the
+    # model finishes, so on its own it can't stop a runaway generation.
+    gateway_default_max_tokens: int = 512
+    gateway_max_tokens_ceiling: int = 2048
 
 
 settings = Settings()

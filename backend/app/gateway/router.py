@@ -177,10 +177,18 @@ async def chat_completions(
             f"prompt matched a known injection pattern: {matched_pattern!r}",
         )
 
+    # Always send a bound: evaluation found unbounded generation live (a
+    # small model ran 1200+ tokens into the client timeout), and a caller
+    # omitting max_tokens is the common case for OpenAI clients.
+    max_tokens = min(
+        body.max_tokens or settings.gateway_default_max_tokens,
+        settings.gateway_max_tokens_ceiling,
+    )
+
     model_name = ollama_model_name(application.model_version_id)
     try:
         result = await _ollama.chat(
-            model_name, [{"role": m.role, "content": m.content} for m in body.messages], body.max_tokens
+            model_name, [{"role": m.role, "content": m.content} for m in body.messages], max_tokens
         )
     except OllamaError as exc:
         raise HTTPException(status_code=502, detail=f"inference failed: {exc.reason}") from exc
@@ -230,7 +238,10 @@ async def chat_completions(
     return ChatCompletionResponse(
         model=str(x_application_id),
         choices=[
-            ChatCompletionChoice(message=ChatCompletionChoiceMessage(role="assistant", content=response_content))
+            ChatCompletionChoice(
+                message=ChatCompletionChoiceMessage(role="assistant", content=response_content),
+                finish_reason=result.get("done_reason") or "stop",
+            )
         ],
         usage=ChatCompletionUsage(
             prompt_tokens=prompt_tokens,

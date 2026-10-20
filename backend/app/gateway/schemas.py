@@ -16,7 +16,9 @@ class ChatCompletionRequest(BaseModel):
     # bypass even if a caller sets it to something else.
     model: str | None = None
     messages: list[ChatMessage]
-    max_tokens: int | None = None
+    # Omitted -> gateway default; above the ceiling -> clamped. See
+    # gateway.md's "Generation bound".
+    max_tokens: int | None = Field(default=None, gt=0)
     stream: bool = False  # non-streaming only for MVP 0.1; True is rejected
 
 
