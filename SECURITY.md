@@ -94,10 +94,12 @@ Append-only, with two independent layers:
    two implementations of one hash will eventually disagree and report
    false breaks.
 
-This makes tampering **detectable**, not impossible. A sufficiently
-privileged database administrator can still alter history. Detectably, but
-they can. Making that impossible needs an append-only store outside this
-database, which MVP does not have.
+This makes tampering **detectable**, not impossible, and only up to a
+point. The hash uses no secret, and the function that computes it lives in
+the same database. A database administrator who edits an event and then
+recomputes every hash after it leaves a chain that verifies cleanly. Catching
+that needs a copy of recent hashes held somewhere they can't reach, such as
+an append-only store outside this database. MVP does not have one.
 
 ### PHI handling
 

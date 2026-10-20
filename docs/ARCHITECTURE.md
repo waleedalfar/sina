@@ -104,7 +104,8 @@ to miss reading any one module, so it is asserted by test.
 
 Two independent layers: the application's database role has no `UPDATE` or
 `DELETE` grant on the audit table (enforced by migration), and a
-trigger-computed hash chain makes any modification detectable. One SQL
+trigger-computed hash chain makes an edited event detectable unless every
+later hash is recomputed too (see SECURITY.md). One SQL
 function computes the hash, called both by the insert trigger and by the
 verification endpoint. It is deliberately not reimplemented twice, because
 two implementations of one hash eventually disagree.

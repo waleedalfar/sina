@@ -26,7 +26,8 @@ the console explains why before anyone attempts one.
 
 The audit log is tamper-evident in two independent layers. The application's
 database role has no `UPDATE` or `DELETE` grant on the audit table, and a
-trigger-computed hash chain makes any change detectable. Verifying the chain
+trigger-computed hash chain makes a change detectable short of rewriting
+every later hash, which [SECURITY.md](SECURITY.md) covers. Verifying the chain
 is a button in the console, not a claim in a document.
 
 The inference gateway enforces policy and is OpenAI-compatible, so existing
