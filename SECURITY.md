@@ -119,10 +119,18 @@ Where the safe answer and the convenient answer differ, the code takes the
 safe one, and each has a test:
 
 - A malware scanner that cannot be reached **refuses the import**. "Could
-  not scan" is never read as "clean". The same goes for a scan that stops
-  partway, and for an artifact larger than the scanner reads in full
-  (100 MiB, ClamAV's default stream limit), which is refused before it is
-  written.
+  not scan" is never read as "clean", and neither is a scan that stops
+  partway. ClamAV is configured to report anything it skips for size or
+  time as a detection rather than `OK`.
+- **Models over 2 GB are not malware-scanned**, because ClamAV cannot scan
+  files that large. They are admitted only if their SHA-256 matches the
+  checksum the publisher lists for the file, which the importer must
+  supply. The version is recorded as "not scanned", never as clean.
+  Imports are capped at 16 GB.
+- Every model file must be a **well-formed GGUF**: the header is parsed
+  with fixed limits, and every tensor must lie inside the file. Its chat
+  template, which the runtime renders on every request, is stored and
+  shown to the reviewer who approves the version.
 - A model artifact whose hash no longer matches what was recorded at import
   **refuses to start**, as does one whose file has been deleted.
 - The gateway **never lazily starts a model**. An unstarted model is an
@@ -182,7 +190,7 @@ admits its edges.
 
 ## How this was verified
 
-182 backend tests at 90% line coverage, plus 47 frontend tests over the
+205 backend tests at 90% line coverage, plus 49 frontend tests over the
 logic that encodes rules. Both suites run against real infrastructure: a
 real Postgres, so the audit triggers and the privilege revocation are the
 ones that ship, rather than a substitute that behaves differently.

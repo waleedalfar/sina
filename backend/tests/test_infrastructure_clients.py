@@ -14,7 +14,7 @@ import uuid
 import httpx
 import pytest
 
-from app.models.clamav import ScanUnavailable, scan_bytes
+from app.models.clamav import ScanUnavailable, scan_bytes, scan_file
 from app.models.ollama_client import OllamaClient, OllamaError
 
 
@@ -102,6 +102,27 @@ async def test_clamd_dropping_the_connection_mid_stream_is_not_clean(monkeypatch
     monkeypatch.setattr(asyncio, "open_connection", _fake_connection(b"", _DroppingWriter()))
     with pytest.raises(ScanUnavailable):
         await scan_bytes("clamav", 3310, b"payload")
+
+
+async def test_scan_file_streams_from_disk_and_drains_per_chunk(monkeypatch, tmp_path):
+    """Draining once at the end let the transport buffer the whole file in
+    memory first, which for a 2 GB artifact is the problem ADR-0006 fixes."""
+
+    class _CountingWriter(_FakeWriter):
+        drains = 0
+
+        async def drain(self):
+            self.drains += 1
+
+    path = tmp_path / "m.gguf"
+    path.write_bytes(b"x" * 3000)
+    writer = _CountingWriter()
+    monkeypatch.setattr(asyncio, "open_connection", _fake_connection(b"stream: OK\x00", writer))
+
+    is_clean, _ = await scan_file("clamav", 3310, str(path), chunk_size=1000)
+    assert is_clean
+    assert writer.written.count(b"x") == 3000
+    assert writer.drains >= 3, "chunks were buffered rather than sent as read"
 
 
 async def test_the_stream_is_chunked_and_terminated(monkeypatch):

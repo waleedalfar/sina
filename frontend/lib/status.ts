@@ -114,8 +114,28 @@ export const RUNTIME_LABEL: Record<RuntimeStatus, string> = {
 export function scanTone(result: MalwareScanResult): Tone {
   if (result === "clean") return "success";
   if (result === "positive") return "danger";
+  // Steel, including not_scannable_size: a reviewer has to look at it.
   return "warning";
 }
+
+export const SCAN_LABEL: Record<MalwareScanResult, string> = {
+  clean: "Scan: clean",
+  positive: "Scan: positive",
+  pending: "Scan: pending",
+  not_scannable_size: "Not scanned: over scanner limit",
+};
+
+/** Mirrors the backend's STARTABLE_SCAN_RESULTS; the server enforces it. */
+export function scanAllowsStart(result: MalwareScanResult | undefined): boolean {
+  return result === "clean" || result === "not_scannable_size";
+}
+
+/**
+ * Mirrors the backend's model_scan_max_bytes (ClamAV's limit, ADR-0006), so
+ * the import form can ask for a publisher checksum before a multi-GB upload
+ * rather than after. The server is authoritative.
+ */
+export const MODEL_SCAN_MAX_BYTES = 2047 * 1024 ** 2;
 
 export function decisionTone(decision: ApprovalDecision): Tone {
   if (decision === "approved") return "success";

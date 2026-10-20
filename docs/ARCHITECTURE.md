@@ -159,7 +159,7 @@ gateway has to evaluate them at request time.
 
 ## Testing
 
-182 backend tests at 90% line coverage, and 47 frontend tests over the
+205 backend tests at 90% line coverage, and 49 frontend tests over the
 logic that encodes rules rather than renders.
 
 Backend tests run against a **real Postgres**, on a throwaway database that

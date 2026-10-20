@@ -9,6 +9,7 @@ explicit deferral of GPU scheduling/multi-instance serving to Phase 2+.
 """
 
 import asyncio
+import os
 
 import httpx
 
@@ -19,9 +20,19 @@ class OllamaError(Exception):
         super().__init__(reason)
 
 
-def _read_file_sync(path: str) -> bytes:
+# Per-operation timeouts, not whole-request ones. The read timeouts are
+# long because each is a single wait on Ollama doing real work: verifying a
+# multi-GB blob's digest after upload, or loading one into memory for the
+# first time (ADR-0006).
+_CREATE_TIMEOUT = httpx.Timeout(180, read=900)
+_HEALTHCHECK_TIMEOUT = httpx.Timeout(60, read=600)
+
+
+async def _file_chunks(path: str, chunk_size: int = 1024 * 1024):
+    """Streams from disk so a 16 GiB artifact never sits in memory."""
     with open(path, "rb") as f:
-        return f.read()
+        while chunk := await asyncio.to_thread(f.read, chunk_size):
+            yield chunk
 
 
 class OllamaClient:
@@ -38,7 +49,7 @@ class OllamaClient:
         import/start-time re-verification rather than letting Ollama
         recompute its own.
         """
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=_CREATE_TIMEOUT) as client:
             # Check existence first (Ollama's own documented pattern) —
             # re-PUTting an already-known digest hit an empty-response
             # connection reset against a live v0.32 server during testing
@@ -52,9 +63,14 @@ class OllamaClient:
                 raise OllamaError(f"could not reach Ollama (blob check): {exc}") from exc
 
             if head.status_code != 200:
-                content = await asyncio.to_thread(_read_file_sync, gguf_path)
                 try:
-                    r = await client.post(f"{self.base_url}/api/blobs/sha256:{sha256_digest}", content=content)
+                    r = await client.post(
+                        f"{self.base_url}/api/blobs/sha256:{sha256_digest}",
+                        content=_file_chunks(gguf_path),
+                        # Explicit, so httpx sends a sized body rather than
+                        # chunked transfer encoding.
+                        headers={"Content-Length": str(os.path.getsize(gguf_path))},
+                    )
                 except httpx.HTTPError as exc:
                     raise OllamaError(f"could not reach Ollama (blob push): {exc}") from exc
                 if r.status_code not in (200, 201):
@@ -77,7 +93,7 @@ class OllamaClient:
     async def generate_healthcheck(self, name: str) -> None:
         """Confirms the model actually loads and can produce output —
         not just that /api/create returned 200."""
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=_HEALTHCHECK_TIMEOUT) as client:
             try:
                 r = await client.post(
                     f"{self.base_url}/api/generate",

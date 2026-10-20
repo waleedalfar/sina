@@ -25,8 +25,10 @@ import {
   decisionTone,
   riskTone,
   runtimeTone,
+  scanAllowsStart,
   scanTone,
   RUNTIME_LABEL,
+  SCAN_LABEL,
   DECISION_LABEL,
 } from "@/lib/status";
 import {
@@ -254,7 +256,7 @@ function VersionPanel({ modelId, row }: { modelId: string; row: ModelDashboardRo
   const latestRun = runs?.[0];
 
   const isRunning = row.runtime_status === "running" || row.runtime_status === "starting";
-  const isClean = full?.malware_scan_result === "clean";
+  const canStartScan = scanAllowsStart(full?.malware_scan_result);
 
   const mutationError = [start.error, stop.error, setRiskClassification.error, recordApproval.error].find(
     (e): e is Error => e instanceof Error,
@@ -282,7 +284,7 @@ function VersionPanel({ modelId, row }: { modelId: string; row: ModelDashboardRo
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill
             tone={scanTone(full?.malware_scan_result ?? "pending")}
-            label={`Scan: ${full?.malware_scan_result ?? "pending"}`}
+            label={SCAN_LABEL[full?.malware_scan_result ?? "pending"]}
           />
           <StatusPill
             tone={runtimeTone(row.runtime_status)}
@@ -305,6 +307,7 @@ function VersionPanel({ modelId, row }: { modelId: string; row: ModelDashboardRo
       <div className="grid grid-cols-1 lg:grid-cols-2">
         <div className="border-b border-hairline lg:border-r lg:border-b-0">
           <DataRow label="Artifact hash">{full?.file_hash ?? "…"}</DataRow>
+          {full?.publisher_sha256 && <DataRow label="Publisher hash">{full.publisher_sha256} · matches</DataRow>}
           <DataRow label="Size">{full ? formatBytes(full.file_size_bytes) : "…"}</DataRow>
           <DataRow label="Imported by">{full?.imported_by ?? "…"}</DataRow>
           <DataRow label="Imported at">{full ? new Date(full.imported_at).toLocaleString() : "…"}</DataRow>
@@ -323,6 +326,27 @@ function VersionPanel({ modelId, row }: { modelId: string; row: ModelDashboardRo
         </div>
       </div>
 
+      {full?.malware_scan_result === "not_scannable_size" && (
+        <p className="border-t border-hairline bg-warning-bg px-4 py-2.5 text-[12.5px] leading-relaxed text-warning">
+          Too large for the malware scanner, so it was not scanned. Admitted because its SHA-256 matches the
+          checksum the importer supplied from the publisher, and it is a well-formed GGUF file.
+        </p>
+      )}
+
+      {/* The chat template is rendered by the runtime on every request, and
+          a crafted one has been a real exploit path (ADR-0006). Shown here
+          so whoever approves this version has read it. */}
+      {full?.chat_template && (
+        <details className="border-t border-hairline px-4 py-3">
+          <summary className="cursor-pointer font-mono text-[10px] tracking-[0.14em] text-secondary uppercase">
+            Chat template · {full.chat_template_sha256?.slice(0, 12)} · review before approving
+          </summary>
+          <pre className="mt-2.5 max-h-80 overflow-auto border border-hairline bg-raised p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+            {full.chat_template}
+          </pre>
+        </details>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline px-4 py-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[9.5px] text-secondary">
           {runtime?.last_started_at && <span>Started {new Date(runtime.last_started_at).toLocaleString()}</span>}
@@ -338,8 +362,8 @@ function VersionPanel({ modelId, row }: { modelId: string; row: ModelDashboardRo
             <Button
               variant="secondary"
               size="sm"
-              disabled={start.isPending || !isClean}
-              title={!isClean ? "Blocked: this version did not pass the malware scan" : undefined}
+              disabled={start.isPending || !canStartScan}
+              title={!canStartScan ? "Blocked: this version did not pass the malware scan" : undefined}
               onClick={() => start.mutate()}
             >
               <Play className="h-3 w-3" /> Start

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import hashlib
 import os
 import uuid
@@ -14,8 +15,11 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.exceptions import Conflict, NotFound
 from app.identity.security import ResolvedIdentity, get_current_identity, require_role
-from app.models.clamav import ScanUnavailable, scan_bytes
+from app.models.clamav import ScanUnavailable, scan_file
+from app.models.gguf import GGUFInvalid
+from app.models.gguf import validate as validate_gguf
 from app.models.models import (
+    STARTABLE_SCAN_RESULTS,
     MalwareScanResult,
     Model,
     ModelRuntimeState,
@@ -78,12 +82,33 @@ async def _to_runtime_state_out(db: AsyncSession, state: ModelRuntimeState) -> M
     )
 
 
-def _write_and_hash_sync(path: str, content: bytes) -> str:
+class _TooLarge(Exception):
+    pass
+
+
+def _copy_and_hash_sync(src, dest_path: str, limit: int) -> tuple[int, str]:
+    """Chunked copy from the spooled upload to the model volume, hashing as
+    it goes. Memory use is one chunk, whatever the artifact's size."""
     hasher = hashlib.sha256()
-    hasher.update(content)
-    with open(path, "wb") as out:
-        out.write(content)
-    return hasher.hexdigest()
+    size = 0
+    src.seek(0)
+    with open(dest_path, "wb") as out:
+        while chunk := src.read(1024 * 1024):
+            size += len(chunk)
+            if size > limit:
+                raise _TooLarge
+            hasher.update(chunk)
+            out.write(chunk)
+    return size, hasher.hexdigest()
+
+
+def _normalise_sha256(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    value = value.strip().lower()
+    if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+        raise HTTPException(status_code=422, detail="publisher_sha256 must be 64 hexadecimal characters")
+    return value
 
 
 def _compute_sha256_sync(path: str) -> str:
@@ -201,15 +226,20 @@ async def import_model_version(
     declared_license: str | None = Form(default=None),
     base_model_version_id: uuid.UUID | None = Form(default=None),
     known_limitations: str | None = Form(default=None),
+    publisher_sha256: str | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
     current: ResolvedIdentity = Depends(require_role("ML Engineer")),
 ):
     """
-    Streams the upload to the shared model-storage volume, hashing as it
-    goes, then runs the ClamAV scan (models.md's malware-scan design
-    decision: hard block, no override) before the ModelVersion row is
-    created with its final scan result — never left half-imported.
+    Copies the upload to the model volume in chunks, hashing as it goes,
+    then applies ADR-0006's checks in order: publisher checksum, then the
+    size tier (ClamAV scan, or `not_scannable_size` with a required
+    checksum), then GGUF structural validation. The ModelVersion row is
+    created only once every check has passed, apart from a malware
+    positive, whose row is kept as the record of a blocked import (no
+    override, per models.md). Every other refusal removes the file.
     """
+    publisher_sha256 = _normalise_sha256(publisher_sha256)
     model = await db.get(Model, model_id)
     if model is None:
         raise NotFound(f"model {model_id} not found")
@@ -223,61 +253,113 @@ async def import_model_version(
         count_result = await db.execute(select(ModelVersion).where(ModelVersion.model_id == model_id))
         version_label = f"v{len(list(count_result.scalars().all())) + 1}"
 
+    # Known before copying anything: Starlette has already spooled the
+    # upload. Refusing here saves copying gigabytes only to refuse after.
+    if file.size is not None and file.size > settings.model_max_upload_bytes:
+        raise _too_large()
+    if file.size is not None and file.size > settings.model_scan_max_bytes and publisher_sha256 is None:
+        raise _checksum_required()
+
     version_id = uuid.uuid4()
     dest_path = _gguf_path(version_id)
     os.makedirs(settings.model_storage_dir, exist_ok=True)
 
-    # UploadFile.read() is the one genuinely async I/O call here (Starlette
-    # spools it, doesn't block the loop); everything after is CPU/disk work
-    # done in a thread so it doesn't stall other requests. Buffers the whole
-    # file in memory — acceptable for MVP 0.1's "basic" scope with small
-    # local artifacts, not appropriate as-is for large multi-GB models.
-    content = await file.read()
-    size = len(content)
-    if size > settings.model_max_upload_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                f"artifact is {size} bytes; the malware scanner reads at most "
-                f"{settings.model_max_upload_bytes}, so it cannot be verified clean"
-            ),
-        )
-    file_hash = await asyncio.to_thread(_write_and_hash_sync, dest_path, content)
-
+    keep_file = False
     try:
-        is_clean, scan_response = await scan_bytes(settings.clamav_host, settings.clamav_port, content)
-    except ScanUnavailable as exc:
-        os.remove(dest_path)
-        raise HTTPException(status_code=502, detail=f"malware scan unavailable, import refused: {exc}") from exc
-    except BaseException:
-        os.remove(dest_path)
-        raise
+        try:
+            size, file_hash = await asyncio.to_thread(
+                _copy_and_hash_sync, file.file, dest_path, settings.model_max_upload_bytes
+            )
+        except _TooLarge:
+            raise _too_large() from None
 
-    scan_result = MalwareScanResult.clean.value if is_clean else MalwareScanResult.positive.value
+        audit_base = {"model_id": str(model_id), "imported_by": str(current.identity.id)}
 
-    version = ModelVersion(
-        id=version_id,
-        tenant_id=current.identity.tenant_id,
-        model_id=model_id,
-        version_label=version_label,
-        file_hash=file_hash,
-        file_size_bytes=size,
-        declared_source=declared_source,
-        declared_license=declared_license,
-        base_model_version_id=base_model_version_id,
-        known_limitations=known_limitations,
-        malware_scan_result=scan_result,
-        malware_scanned_at=datetime.now(UTC),
-        hash_verified_at_import=datetime.now(UTC),
-        imported_by=current.identity.id,
-    )
-    db.add(version)
-    await db.flush()
+        # 1. Publisher checksum. A mismatch is either a substituted file or a
+        # mistyped checksum, and only a person can tell which — audited as
+        # security-critical either way.
+        if publisher_sha256 is not None and publisher_sha256 != file_hash:
+            await audit_emit(
+                db,
+                tenant_id=current.identity.tenant_id,
+                event_type="model_version.publisher_checksum_mismatch",
+                actor_identity_id=current.identity.id,
+                resource_type="model",
+                resource_id=model_id,
+                payload={**audit_base, "publisher_sha256": publisher_sha256, "computed_sha256": file_hash},
+                severity=Severity.security_critical,
+            )
+            await db.commit()
+            raise HTTPException(
+                status_code=422,
+                detail="the file's SHA-256 does not match the publisher checksum supplied; import refused",
+            )
 
-    runtime_state = ModelRuntimeState(model_version_id=version_id, runtime_status=RuntimeStatus.stopped.value)
-    db.add(runtime_state)
+        # 2. Tier by size.
+        if size > settings.model_scan_max_bytes:
+            if publisher_sha256 is None:  # chunked upload with no declared size
+                raise _checksum_required()
+            scan_result = MalwareScanResult.not_scannable_size.value
+            scanned_at = None
+        else:
+            try:
+                is_clean, scan_response = await scan_file(settings.clamav_host, settings.clamav_port, dest_path)
+            except ScanUnavailable as exc:
+                raise HTTPException(
+                    status_code=502, detail=f"malware scan unavailable, import refused: {exc}"
+                ) from exc
+            if not is_clean:
+                keep_file = True
+                await _record_malware_positive(
+                    db, current, model_id, version_id, version_label, file_hash, size, scan_response,
+                    declared_source, declared_license, base_model_version_id, known_limitations, publisher_sha256,
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"malware scan flagged this file, import blocked: {scan_response}",
+                )
+            scan_result = MalwareScanResult.clean.value
+            scanned_at = datetime.now(UTC)
 
-    if is_clean:
+        # 3. GGUF structure.
+        try:
+            info = await asyncio.to_thread(validate_gguf, dest_path)
+        except GGUFInvalid as exc:
+            await audit_emit(
+                db,
+                tenant_id=current.identity.tenant_id,
+                event_type="model_version.format_rejected",
+                actor_identity_id=current.identity.id,
+                resource_type="model",
+                resource_id=model_id,
+                payload={**audit_base, "file_hash": file_hash, "reason": str(exc)},
+                severity=Severity.info,
+            )
+            await db.commit()
+            raise HTTPException(status_code=422, detail=f"not a valid GGUF model file: {exc}") from exc
+
+        version = ModelVersion(
+            id=version_id,
+            tenant_id=current.identity.tenant_id,
+            model_id=model_id,
+            version_label=version_label,
+            file_hash=file_hash,
+            file_size_bytes=size,
+            declared_source=declared_source,
+            declared_license=declared_license,
+            base_model_version_id=base_model_version_id,
+            known_limitations=known_limitations,
+            malware_scan_result=scan_result,
+            malware_scanned_at=scanned_at,
+            publisher_sha256=publisher_sha256,
+            chat_template=info.chat_template,
+            chat_template_sha256=info.chat_template_sha256,
+            hash_verified_at_import=datetime.now(UTC),
+            imported_by=current.identity.id,
+        )
+        db.add(version)
+        await db.flush()
+        db.add(ModelRuntimeState(model_version_id=version_id, runtime_status=RuntimeStatus.stopped.value))
         await audit_emit(
             db,
             tenant_id=current.identity.tenant_id,
@@ -285,11 +367,67 @@ async def import_model_version(
             actor_identity_id=current.identity.id,
             resource_type="model_version",
             resource_id=version_id,
-            payload={"file_hash": file_hash, "imported_by": str(current.identity.id)},
+            payload={
+                "file_hash": file_hash,
+                "imported_by": str(current.identity.id),
+                "malware_scan_result": scan_result,
+                "publisher_sha256": publisher_sha256,
+                "chat_template_sha256": info.chat_template_sha256,
+            },
         )
         await db.commit()
+        keep_file = True
         return version
+    finally:
+        if not keep_file:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(dest_path)
 
+
+def _too_large() -> HTTPException:
+    return HTTPException(
+        status_code=413,
+        detail=f"artifact exceeds the {settings.model_max_upload_bytes}-byte import ceiling",
+    )
+
+
+def _checksum_required() -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail=(
+            f"artifacts over {settings.model_scan_max_bytes} bytes cannot be malware-scanned, so a "
+            "publisher_sha256 is required: the SHA-256 the publisher lists for this file"
+        ),
+    )
+
+
+async def _record_malware_positive(
+    db, current, model_id, version_id, version_label, file_hash, size, scan_response,
+    declared_source, declared_license, base_model_version_id, known_limitations, publisher_sha256,
+) -> None:
+    """The row and file are kept as the durable record of a blocked import
+    (see models.py's docstring); the version can never be started."""
+    db.add(
+        ModelVersion(
+            id=version_id,
+            tenant_id=current.identity.tenant_id,
+            model_id=model_id,
+            version_label=version_label,
+            file_hash=file_hash,
+            file_size_bytes=size,
+            declared_source=declared_source,
+            declared_license=declared_license,
+            base_model_version_id=base_model_version_id,
+            known_limitations=known_limitations,
+            malware_scan_result=MalwareScanResult.positive.value,
+            malware_scanned_at=datetime.now(UTC),
+            publisher_sha256=publisher_sha256,
+            hash_verified_at_import=datetime.now(UTC),
+            imported_by=current.identity.id,
+        )
+    )
+    await db.flush()
+    db.add(ModelRuntimeState(model_version_id=version_id, runtime_status=RuntimeStatus.stopped.value))
     await audit_emit(
         db,
         tenant_id=current.identity.tenant_id,
@@ -301,12 +439,6 @@ async def import_model_version(
         severity=Severity.security_critical,
     )
     await db.commit()
-    # The row is kept (see models.py's docstring) but the import itself is
-    # reported as failed — no override path, per models.md.
-    raise HTTPException(
-        status_code=422,
-        detail=f"malware scan flagged this file, import blocked: {scan_response}",
-    )
 
 
 @router.get("/models/{model_id}/versions/{version_id}", response_model=ModelVersionOut)
@@ -332,7 +464,7 @@ async def start_model_version(
     if version is None:
         raise NotFound(f"model version {version_id} not found")
 
-    if version.malware_scan_result != MalwareScanResult.clean.value:
+    if version.malware_scan_result not in STARTABLE_SCAN_RESULTS:
         raise Conflict(f"model version {version_id} did not pass malware scan and cannot be started")
 
     state = await db.get(ModelRuntimeState, version_id)

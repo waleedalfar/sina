@@ -47,9 +47,12 @@ class Settings(BaseSettings):
     clamav_port: int = 3310
     ollama_base_url: str = "http://ollama:11434"
     model_storage_dir: str = "/models"
-    # Pinned to clamd's default StreamMaxLength: an artifact the scanner
-    # can't fully read can't be called clean. See models.md.
-    model_max_upload_bytes: int = 100 * 1024 * 1024
+    # ADR-0006. Hard ceiling on any artifact, enforced while streaming.
+    model_max_upload_bytes: int = 16 * 1024**3
+    # Must equal clamd's StreamMaxLength/MaxFileSize (infra/clamav/clamd.conf).
+    # Up to this, ClamAV scans the whole file; above it, the publisher
+    # checksum tier applies and the file is never sent to clamd.
+    model_scan_max_bytes: int = 2047 * 1024**2
 
     # gateway module — see gateway.md and ADR-0005.
     redis_url: str = "redis://redis:6379/0"

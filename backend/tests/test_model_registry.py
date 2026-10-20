@@ -17,32 +17,33 @@ import uuid
 import pytest
 
 from app.models.models import MalwareScanResult, ModelRuntimeState, ModelVersion, RuntimeStatus
+from tests.gguf_builder import build_gguf
 
 
 @pytest.fixture
 def stub_clean_scan(monkeypatch):
-    async def _scan(host, port, content):
+    async def _scan(host, port, path):
         return True, "OK"
 
-    monkeypatch.setattr("app.models.router.scan_bytes", _scan)
+    monkeypatch.setattr("app.models.router.scan_file", _scan)
 
 
 @pytest.fixture
 def stub_infected_scan(monkeypatch):
-    async def _scan(host, port, content):
+    async def _scan(host, port, path):
         return False, "Eicar-Test-Signature FOUND"
 
-    monkeypatch.setattr("app.models.router.scan_bytes", _scan)
+    monkeypatch.setattr("app.models.router.scan_file", _scan)
 
 
 @pytest.fixture
 def stub_scanner_down(monkeypatch):
     from app.models.clamav import ScanUnavailable
 
-    async def _scan(host, port, content):
+    async def _scan(host, port, path):
         raise ScanUnavailable("clamd unreachable")
 
-    monkeypatch.setattr("app.models.router.scan_bytes", _scan)
+    monkeypatch.setattr("app.models.router.scan_file", _scan)
 
 
 @pytest.fixture
@@ -72,11 +73,11 @@ async def _create_model(client, name=None):
     return r.json()
 
 
-async def _import(client, model_id, content=b"fake gguf bytes", label="v1"):
+async def _import(client, model_id, content=None, label="v1", **form):
     return await client.post(
         f"/api/v1/models/{model_id}/versions",
-        files={"file": ("model.gguf", content, "application/octet-stream")},
-        data={"version_label": label},
+        files={"file": ("model.gguf", content if content is not None else build_gguf(), "application/octet-stream")},
+        data={"version_label": label, **form},
     )
 
 
@@ -88,7 +89,7 @@ async def test_import_records_the_hash_of_what_was_actually_written(
 ):
     await as_role("ML Engineer")
     model = await _create_model(client)
-    content = b"deterministic bytes for hashing"
+    content = build_gguf(chat_template="deterministic bytes for hashing")
 
     r = await _import(client, model["id"], content=content)
     assert r.status_code == 201, r.text
@@ -420,3 +421,143 @@ async def test_start_refuses_cleanly_when_the_artifact_file_is_gone(
     r = await client.post(f"/api/v1/model-versions/{model_version.id}/start", json={})
     assert r.status_code == 409, r.text
     assert "missing" in r.text.lower()
+
+
+# --- Verification tiers (ADR-0006) ------------------------------------
+
+
+def _sha(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+@pytest.fixture
+def scan_spy(monkeypatch):
+    """A clean scanner that records whether it was asked at all: above the
+    scan limit the file must never be sent to clamd."""
+    calls = []
+
+    async def _scan(host, port, path):
+        calls.append(path)
+        return True, "OK"
+
+    monkeypatch.setattr("app.models.router.scan_file", _scan)
+    return calls
+
+
+@pytest.fixture
+def small_scan_limit(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "model_scan_max_bytes", 64)
+
+
+async def _audit(client, roles, make_identity, event_type):
+    admin = await make_identity("Platform Administrator")
+    client.act_as(admin, [roles["Platform Administrator"]])
+    r = await client.get(f"/api/v1/audit-events?event_type={event_type}")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_a_non_gguf_file_is_refused_and_audited(client, as_role, roles, make_identity, scan_spy):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    before = _stored_artifacts()
+
+    r = await _import(client, model["id"], content=b"a renamed zip, not a model")
+    assert r.status_code == 422, r.text
+    assert "not a valid GGUF" in r.text
+    assert _stored_artifacts() == before
+    assert await _audit(client, roles, make_identity, "model_version.format_rejected")
+
+
+async def test_a_publisher_checksum_mismatch_is_refused_and_audited_as_critical(
+    client, as_role, roles, make_identity, scan_spy
+):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    before = _stored_artifacts()
+
+    r = await _import(client, model["id"], publisher_sha256="0" * 64)
+    assert r.status_code == 422, r.text
+    assert "does not match" in r.text
+    assert _stored_artifacts() == before
+    assert not scan_spy, "a file that failed its checksum was still sent to the scanner"
+
+    events = await _audit(client, roles, make_identity, "model_version.publisher_checksum_mismatch")
+    assert events and events[0]["severity"] == "security_critical"
+
+
+async def test_a_matching_publisher_checksum_is_recorded(client, as_role, scan_spy):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    content = build_gguf()
+
+    r = await _import(client, model["id"], content=content, publisher_sha256=_sha(content).upper())
+    assert r.status_code == 201, r.text
+    assert r.json()["publisher_sha256"] == _sha(content), "checksum should be stored normalised"
+    assert r.json()["malware_scan_result"] == "clean"
+
+
+async def test_a_malformed_publisher_checksum_is_422(client, as_role, scan_spy):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    r = await _import(client, model["id"], publisher_sha256="not-a-hash")
+    assert r.status_code == 422, r.text
+
+
+async def test_above_the_scan_limit_a_publisher_checksum_is_required(
+    client, as_role, scan_spy, small_scan_limit
+):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    before = _stored_artifacts()
+
+    r = await _import(client, model["id"])
+    assert r.status_code == 422, r.text
+    assert "publisher_sha256 is required" in r.text
+    assert _stored_artifacts() == before
+    assert not scan_spy
+
+
+async def test_above_the_scan_limit_the_file_is_verified_not_scanned(
+    client, as_role, scan_spy, small_scan_limit
+):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    content = build_gguf(chat_template="{% for m in messages %}{{ m }}{% endfor %}")
+
+    r = await _import(client, model["id"], content=content, publisher_sha256=_sha(content))
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["malware_scan_result"] == "not_scannable_size"
+    assert body["malware_scanned_at"] is None, "nothing was scanned, so no scan time"
+    assert body["chat_template"].startswith("{% for m in messages %}")
+    assert body["chat_template_sha256"] == hashlib.sha256(body["chat_template"].encode()).hexdigest()
+    assert not scan_spy, "a file above the scan limit was sent to clamd"
+
+
+async def test_a_verified_tier_version_can_be_started(
+    client, as_role, scan_spy, small_scan_limit, stub_ollama_runtime
+):
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    content = build_gguf()
+    r = await _import(client, model["id"], content=content, publisher_sha256=_sha(content))
+    assert r.status_code == 201, r.text
+
+    r = await client.post(f"/api/v1/model-versions/{r.json()['id']}/start")
+    assert r.status_code == 200, r.text
+    assert r.json()["runtime_status"] == "running"
+
+
+async def test_a_declared_oversize_upload_is_refused_before_the_body_is_read(client, as_role, monkeypatch):
+    """The middleware, not the handler: the Content-Length alone decides."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "model_max_upload_bytes", 16)
+    await as_role("ML Engineer")
+    model = await _create_model(client)
+    r = await _import(client, model["id"], content=b"\x00" * (2 * 1024 * 1024))
+    assert r.status_code == 413, r.text
+    assert "ceiling" in r.text

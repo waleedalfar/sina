@@ -26,6 +26,13 @@ class MalwareScanResult(str, Enum):
     pending = "pending"
     clean = "clean"
     positive = "positive"
+    # Over ClamAV's 2 GB limit, so never scanned; admitted on a publisher
+    # checksum instead (ADR-0006). Must never render or be treated as clean.
+    not_scannable_size = "not_scannable_size"
+
+
+# What may be started. `positive` and `pending` never can.
+STARTABLE_SCAN_RESULTS = {MalwareScanResult.clean.value, MalwareScanResult.not_scannable_size.value}
 
 
 class ModelVersion(Base, TenantScopedMixin):
@@ -66,6 +73,11 @@ class ModelVersion(Base, TenantScopedMixin):
         Text, nullable=False, default=MalwareScanResult.pending.value
     )
     malware_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # ADR-0006. Importer-supplied; required above the scan limit.
+    publisher_sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # From GGUF metadata, kept so the AI Governance reviewer sees it.
+    chat_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chat_template_sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
     hash_verified_at_import: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     imported_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("identity.id"), nullable=False)
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)

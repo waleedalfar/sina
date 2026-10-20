@@ -57,6 +57,10 @@ services:
     # Desktop on Apple Silicon. Dev-only concession; unrelated to any
     # design decision in models.md.
     platform: linux/amd64
+    volumes:
+      # Scan limits and AlertExceedsMax, ADR-0006. Read-only: clamd never
+      # writes its own config.
+      - ./clamav/clamd.conf:/etc/clamav/clamd.conf:ro
     healthcheck:
       # clamd can take a couple of minutes on first boot while freshclam
       # pulls virus definitions — generous start_period/retries for that.

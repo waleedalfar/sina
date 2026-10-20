@@ -14,6 +14,31 @@ from app.models.router import router as models_router
 
 app = FastAPI(title="Hospital Platform Backend", version="0.1.0")
 
+# Allowance for the multipart envelope around the artifact itself.
+_MULTIPART_OVERHEAD = 1024 * 1024
+
+
+@app.middleware("http")
+async def _refuse_oversized_model_upload(request: Request, call_next):
+    """ADR-0006's ceiling, applied before the body is read. Starlette parses
+    the whole multipart body before the handler runs, so the handler's own
+    check comes after the bytes are already on disk; this stops a declared
+    oversize upload at the door. Registered before CORS on purpose: the
+    middleware added last is outermost, and CORS has to wrap this response
+    for a browser to see the 413 rather than a network error. A chunked
+    upload has no Content-Length and is caught by the handler instead."""
+    if request.method == "POST" and request.url.path.startswith("/api/v1/models/") and request.url.path.endswith(
+        "/versions"
+    ):
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > settings.model_max_upload_bytes + _MULTIPART_OVERHEAD:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"artifact exceeds the {settings.model_max_upload_bytes}-byte import ceiling"},
+            )
+    return await call_next(request)
+
+
 # The frontend is a browser SPA that authenticates directly against
 # Keycloak (never routing tokens through this backend) and then calls this
 # API cross-origin — see frontend.md. Bearer-token auth means credentials

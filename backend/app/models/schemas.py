@@ -43,6 +43,9 @@ class ModelVersionOut(BaseModel):
     risk_classification: str | None
     malware_scan_result: str
     malware_scanned_at: datetime | None
+    publisher_sha256: str | None
+    chat_template: str | None
+    chat_template_sha256: str | None
     imported_by: uuid.UUID
     imported_at: datetime
 

@@ -11,6 +11,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { RestrictedState } from "@/components/ui/ResourceState";
 import { hasAnyRole, IMPORT_MODEL_VERSION_ROLES } from "@/lib/auth/roles";
 import { ApiError } from "@/lib/api/client";
+import { MODEL_SCAN_MAX_BYTES } from "@/lib/status";
+
+const SHA256 = /^[0-9a-fA-F]{64}$/;
 
 export default function ImportModelVersionPage({ params }: { params: Promise<{ modelId: string }> }) {
   const { modelId } = use(params);
@@ -26,6 +29,7 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
   const [declaredLicense, setDeclaredLicense] = useState("");
   const [knownLimitations, setKnownLimitations] = useState("");
   const [baseModelVersionId, setBaseModelVersionId] = useState("");
+  const [publisherSha, setPublisherSha] = useState("");
 
   if (modelLoading || meLoading || !model) {
     return (
@@ -47,8 +51,16 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
         ? importVersion.error.message
         : null;
 
+  // Above the scanner's limit the publisher checksum is what admits the file
+  // (ADR-0006). Asked for here, before upload, rather than learnt from a 422
+  // after sending gigabytes.
+  const tooLargeToScan = !!file && file.size > MODEL_SCAN_MAX_BYTES;
+  const shaEntered = publisherSha.trim().length > 0;
+  const shaValid = SHA256.test(publisherSha.trim());
+  const checksumBlocking = (tooLargeToScan && !shaValid) || (shaEntered && !shaValid);
+
   const submit = () => {
-    if (!file) return;
+    if (!file || checksumBlocking) return;
     importVersion.mutate(
       {
         file,
@@ -58,6 +70,7 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
           declared_license: declaredLicense || undefined,
           known_limitations: knownLimitations || undefined,
           base_model_version_id: baseModelVersionId || undefined,
+          publisher_sha256: publisherSha.trim() || undefined,
         },
       },
       { onSuccess: () => router.push(`/models/${modelId}`) },
@@ -88,14 +101,15 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
             <span className="font-mono text-[11px] tracking-[0.14em] text-accent uppercase">Ready to import</span>
             <span className="max-w-full truncate font-mono text-[12.5px] text-primary">{file.name}</span>
             <span className="font-mono text-[10px] text-secondary">
-              {(file.size / (1024 * 1024)).toFixed(1)} MB · hashed and scanned on arrival
+              {(file.size / (1024 * 1024)).toFixed(1)} MB ·{" "}
+              {tooLargeToScan ? "too large to malware-scan; verified by publisher checksum" : "hashed and scanned on arrival"}
             </span>
           </>
         ) : (
           <>
             <span className="font-mono text-[11px] tracking-[0.18em] text-secondary uppercase">Choose weights archive</span>
             <span className="text-[12.5px] text-secondary">
-              .gguf · hashed with SHA-256 and malware-scanned on arrival
+              .gguf up to 16 GB · hashed with SHA-256, malware-scanned up to 2 GB
             </span>
             <span className="mt-1 border border-strong bg-surface px-4 py-2.5 font-mono text-[10px] tracking-[0.16em] uppercase">
               Choose file
@@ -104,6 +118,26 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
         )}
       </button>
       <input ref={fileInput} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+
+      <label className="flex flex-col gap-1.5">
+        <span className="label-mono">
+          Publisher SHA-256 — {tooLargeToScan ? "required: this file is too large to malware-scan" : "optional, checked if given"}
+        </span>
+        <input
+          value={publisherSha}
+          onChange={(e) => setPublisherSha(e.target.value)}
+          placeholder="the checksum listed on the publisher's download page"
+          aria-invalid={checksumBlocking || undefined}
+          aria-describedby="publisher-sha-help"
+          className="field field-mono"
+          spellCheck={false}
+        />
+        <span id="publisher-sha-help" className={`text-[12px] ${checksumBlocking ? "text-danger" : "text-secondary"}`}>
+          {shaEntered && !shaValid
+            ? "A SHA-256 is 64 hexadecimal characters."
+            : "Sina hashes the file itself and refuses the import if the two differ."}
+        </span>
+      </label>
 
       <label className="flex flex-col gap-1.5">
         <span className="label-mono">Version label — auto-generated if blank</span>
@@ -176,8 +210,8 @@ export default function ImportModelVersionPage({ params }: { params: Promise<{ m
         <Button variant="secondary" onClick={() => router.push(`/models/${modelId}`)}>
           Cancel
         </Button>
-        <Button variant="primary" disabled={!file || importVersion.isPending} onClick={submit}>
-          {importVersion.isPending ? "Importing…" : "Import & scan"}
+        <Button variant="primary" disabled={!file || checksumBlocking || importVersion.isPending} onClick={submit}>
+          {importVersion.isPending ? "Importing…" : tooLargeToScan ? "Import & verify" : "Import & scan"}
         </Button>
       </div>
     </div>

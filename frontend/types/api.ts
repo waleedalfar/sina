@@ -131,7 +131,9 @@ export interface ApplicationDetail extends Application {
 // --- models ---
 
 export type RuntimeStatus = "stopped" | "starting" | "running" | "error";
-export type MalwareScanResult = "clean" | "positive" | "pending";
+// not_scannable_size: over ClamAV's 2 GB limit, admitted on a publisher
+// checksum instead (ADR-0006). Never to be shown or treated as clean.
+export type MalwareScanResult = "clean" | "positive" | "pending" | "not_scannable_size";
 
 export interface ModelVersion {
   id: string;
@@ -146,6 +148,9 @@ export interface ModelVersion {
   known_limitations: string | null;
   malware_scan_result: MalwareScanResult;
   malware_scanned_at: string | null;
+  publisher_sha256: string | null;
+  chat_template: string | null;
+  chat_template_sha256: string | null;
   risk_classification: RiskClassification | null;
   imported_by: string;
   imported_at: string;

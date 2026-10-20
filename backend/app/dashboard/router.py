@@ -235,6 +235,9 @@ async def dashboard_security_events(
     failed_auth = await _events(event_type="identity.auth_rejected")
     scan_failed = await _events(event_type="model_version.malware_scan_failed")
     hash_mismatch = await _events(event_type="model_version.hash_mismatch_detected")
+    # ADR-0006: refused imports that suggest a substituted or malformed file.
+    checksum_mismatch = await _events(event_type="model_version.publisher_checksum_mismatch")
+    format_rejected = await _events(event_type="model_version.format_rejected")
 
     inference_result = await db.execute(
         select(AuditEvent)
@@ -279,7 +282,13 @@ async def dashboard_security_events(
         phi_events=phi_events,
         failed_authentication=failed_auth,
         suspicious_prompts=suspicious_prompts,
-        security_findings=(scan_failed + hash_mismatch)[:limit],
+        # Merged newest-first: concatenating then truncating would let one
+        # source crowd out more recent findings from another.
+        security_findings=sorted(
+            scan_failed + hash_mismatch + checksum_mismatch + format_rejected,
+            key=lambda e: e["sequence_number"],
+            reverse=True,
+        )[:limit],
     )
 
 

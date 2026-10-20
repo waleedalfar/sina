@@ -23,6 +23,7 @@ export const modelsApi = {
       declared_license?: string;
       base_model_version_id?: string;
       known_limitations?: string;
+      publisher_sha256?: string;
     } = {},
   ) => {
     const form = new FormData();
@@ -32,6 +33,7 @@ export const modelsApi = {
     if (opts.declared_license) form.append("declared_license", opts.declared_license);
     if (opts.base_model_version_id) form.append("base_model_version_id", opts.base_model_version_id);
     if (opts.known_limitations) form.append("known_limitations", opts.known_limitations);
+    if (opts.publisher_sha256) form.append("publisher_sha256", opts.publisher_sha256);
     return apiFetch<ModelVersion>(`/api/v1/models/${modelId}/versions`, {
       method: "POST",
       body: form,
