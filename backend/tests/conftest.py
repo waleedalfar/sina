@@ -17,8 +17,11 @@ does in production. Token validation itself stays covered by live
 verification, as recorded in `identity.md`.
 """
 
+import atexit
 import os
+import shutil
 import subprocess
+import tempfile
 import uuid
 
 # Must happen before anything imports app.core.config, which binds the
@@ -30,6 +33,11 @@ os.environ["DATABASE_URL"] = (
 os.environ["MIGRATIONS_DATABASE_URL"] = (
     f"postgresql+asyncpg://postgres:postgres@postgres:5432/{TEST_DB}"
 )
+# Same reasoning as the database: the import endpoint writes uploaded
+# artifacts here, and the default is the dev stack's shared /models volume.
+_MODEL_DIR = tempfile.mkdtemp(prefix="test-models-")
+os.environ["MODEL_STORAGE_DIR"] = _MODEL_DIR
+atexit.register(shutil.rmtree, _MODEL_DIR, ignore_errors=True)
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
