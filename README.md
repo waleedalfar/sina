@@ -74,7 +74,7 @@ The API is at <http://localhost:8000>, with Swagger at `/docs`.
 
 ## Status
 
-MVP 0.1 is complete. It has 174 backend tests at 90% line coverage plus 47
+MVP 0.1 is complete. It has 182 backend tests at 90% line coverage plus 47
 frontend tests, and it was verified against real infrastructure rather than
 mocks: real Keycloak tokens, real ClamAV scans, real Ollama inference, a real
 governance approval cycle. All seven backend modules are finished, as is the
